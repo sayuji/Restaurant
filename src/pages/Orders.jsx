@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Orders() {
+  const navigate = useNavigate();
+
   const [categories] = useState([
     { value: "all", label: "Semua Menu" },
     { value: "Makanan", label: "Makanan" },
@@ -41,7 +44,6 @@ export default function Orders() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [orderItems, setOrderItems] = useState([]);
-  const [showAlert, setShowAlert] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -97,16 +99,25 @@ export default function Orders() {
 
   const handleCheckout = () => {
     if (orderItems.length === 0) return;
-    setShowAlert(true);
-    setTimeout(() => {
-      setShowAlert(false);
-      setOrderItems([]);
-    }, 2000);
+
+    // Simpan juga ke localStorage biar aman kalau user refresh di checkout
+    const orderData = {
+      items: orderItems.map((item) => ({
+        nama: item.name,
+        qty: item.quantity,
+        harga: item.price,
+        catatan: item.notes,
+      })),
+      totalHarga: totalPrice,
+      namaMeja: "Meja 1",
+    };
+
+    localStorage.setItem("orderData", JSON.stringify(orderData));
+    navigate("/checkout", { state: orderData });
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      {/* Header */}
       <header className="mb-6 text-center">
         <h1 className="text-2xl md:text-3xl font-bold text-blue-600">
           Order - Meja 1
@@ -223,12 +234,12 @@ export default function Orders() {
       {/* Modal Tambah Pesanan */}
       {showModal && selectedMenu && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-80 relative animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-lg p-6 w-80 relative">
             <h2 className="text-xl font-semibold mb-4 text-center">
               {selectedMenu.name}
             </h2>
 
-            {/* Tombol Jumlah dengan + dan - */}
+            {/* Tombol Jumlah */}
             <div className="flex items-center justify-center mb-4">
               <button
                 onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
@@ -247,7 +258,7 @@ export default function Orders() {
               </button>
             </div>
 
-            {/* Input Notes */}
+            {/* Catatan */}
             <label className="block mb-2 text-sm font-medium text-gray-600">
               Catatan (Opsional):
             </label>
@@ -279,13 +290,6 @@ export default function Orders() {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Alert */}
-      {showAlert && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded shadow-lg z-50 animate-fadeIn">
-          Pesanan berhasil dikirim!
         </div>
       )}
     </div>

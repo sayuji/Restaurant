@@ -4,6 +4,7 @@ import Menu from "./pages/Menu";
 import Tables from "./pages/Tables";
 import Orders from "./pages/Orders";
 import OrderPage from "./pages/OrderPage";
+import Checkout from "./pages/Checkout"; 
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
       <Route path="/tables" element={<Tables />} />
       <Route path="/orders" element={<Orders />} />
       <Route path="/orderpage" element={<OrderPage />} />
+      <Route path="/checkout" element={<Checkout />} />
     </Routes>
   );
 }

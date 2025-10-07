@@ -12,8 +12,6 @@ export default function MainLayout({ children }) {
           <Link to="/tables" className="hover:bg-blue-100 px-3 py-2 rounded">Tables</Link>
           <Link to="/orders" className="hover:bg-blue-100 px-3 py-2 rounded">Orders</Link>
           <Link to="/orderpage" className="hover:bg-blue-100 px-3 py-2 rounded">Pesan Makanan</Link>
-          <Link to="/employees" className="hover:bg-blue-100 px-3 py-2 rounded">Employees</Link>
-          <Link to="/reports" className="hover:bg-blue-100 px-3 py-2 rounded">Reports</Link>
         </nav>
       </aside>
 
