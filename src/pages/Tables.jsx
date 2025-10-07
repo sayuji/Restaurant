@@ -11,12 +11,10 @@ export default function Tables() {
 
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({});
-  const [modalType, setModalType] = useState("");
   const [form, setForm] = useState({ name: "", status: "kosong" });
 
   const openModal = (type, table = {}) => {
-    setModalType(type);
-    setModalData(table);
+    setModalData({ ...table, type });
     if (type === "edit") {
       setForm({ name: table.name, status: table.status });
     } else if (type === "add") {
@@ -67,7 +65,7 @@ export default function Tables() {
         + Tambah Meja
       </button>
 
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="bg-white shadow rounded-lg p-6 overflow-x-auto">
         <table className="w-full border-collapse border">
           <thead>
             <tr className="bg-gray-100">
@@ -79,35 +77,39 @@ export default function Tables() {
           </thead>
           <tbody>
             {tables.map((table) => (
-              <tr key={table.id}>
+              <tr key={table.id} className="text-center">
                 <td className="border px-4 py-2">{table.name}</td>
                 <td className="border px-4 py-2">{table.status}</td>
 
-            {/* QR Code */}
-              <td className="border px-4 py-2 flex justify-center">
-              <QRCodeCanvas
-                value={`https://restaurant.com/order?table=${table.id}`}
-                size={64}
-                className={table.status === "kosong" ? "opacity-100" : "opacity-40"}
-              />
-              </td>
+                {/* QR Code */}
+                <td className="border px-4 py-2">
+                  <div className="flex justify-center">
+                    <QRCodeCanvas
+                      value={`https://restaurant.com/order?table=${table.id}`}
+                      size={64}
+                      className={table.status === "kosong" ? "opacity-100" : "opacity-40"}
+                    />
+                  </div>
+                </td>
 
-            {/* Aksi */}
-              <td className="border px-4 py-2 flex gap-2 justify-center">
-                <button
-                  onClick={() => openModal("edit", table)}
-                  className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => openModal("delete", table)}
-                  className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
-                >
-                  Hapus
-                </button>
-              </td>
-            </tr>
+                {/* Aksi */}
+                <td className="border px-4 py-2">
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={() => openModal("edit", table)}
+                      className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => openModal("delete", table)}
+                      className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -116,7 +118,7 @@ export default function Tables() {
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-            {modalType === "delete" ? (
+            {modalData.type === "delete" ? (
               <>
                 <h3 className="text-lg font-semibold mb-4">Hapus Meja</h3>
                 <p>Yakin ingin menghapus meja "{modalData.name}"?</p>
