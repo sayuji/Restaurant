@@ -15,20 +15,18 @@ export default function Orders() {
   const [showTableSelector, setShowTableSelector] = useState(false);
   const [availableTables, setAvailableTables] = useState([]);
 
-  // 🔹 Load available tables from localStorage
+  // 🔹 Load available tables from localStorage and handle URL parameter
   useEffect(() => {
     const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
     setAvailableTables(savedTables);
-  }, []);
-
-  // 🔹 Handle table parameter from URL on component mount
-  useEffect(() => {
+    
+    // Handle table parameter from URL after tables are loaded
     const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
     
     if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
       // Decrypt and find the table
       const decryptedTableId = decryptTableParam(encryptedTableParam);
-      const foundTable = availableTables.find(table => table.id === decryptedTableId);
+      const foundTable = savedTables.find(table => table.id === decryptedTableId);
       
       if (foundTable) {
         setSelectedTable(foundTable);
@@ -41,7 +39,7 @@ export default function Orders() {
       // No table parameter, show selector
       setShowTableSelector(true);
     }
-  }, [location.search, availableTables]);
+  }, [location.search, location.pathname]);
 
   // 🔹 Ambil data menu dari localStorage
   useEffect(() => {
