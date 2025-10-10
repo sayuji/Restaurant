@@ -27,14 +27,17 @@ export default function MainLayout({ children }) {
   ];
 
   return (
-    <div className="flex min-h-screen bg-gray-100 text-gray-900">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col justify-between">
-        <div>
-          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200">
+    <div className="flex h-screen bg-gray-100 text-gray-900 overflow-hidden">
+      {/* Sidebar - Fixed with separate scroll */}
+      <aside className="w-64 bg-white shadow-md flex flex-col fixed left-0 top-0 h-full z-10">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header - Fixed */}
+          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200 flex-shrink-0">
             🍽️ Restaurant App
           </div>
-          <nav className="p-4 space-y-3">
+          
+          {/* Navigation - Scrollable */}
+          <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
             {menuItems.map((item) => (
               <Link
                 key={item.path}
@@ -52,8 +55,8 @@ export default function MainLayout({ children }) {
           </nav>
         </div>
 
-        {/* Tombol logout */}
-        <div className="p-4 border-t border-gray-200">
+        {/* Logout Button - Fixed at bottom */}
+        <div className="p-4 border-t border-gray-200 flex-shrink-0">
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 py-2 text-red-600 hover:bg-red-100 rounded-lg font-semibold transition"
@@ -63,8 +66,12 @@ export default function MainLayout({ children }) {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+      {/* Main content - Independent scroll with left margin for sidebar */}
+      <main className="flex-1 ml-64 h-full overflow-y-auto">
+        <div className="p-6">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
