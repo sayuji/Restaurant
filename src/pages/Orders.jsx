@@ -1,11 +1,45 @@
-import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useMemo, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { FiSearch, FiMinus, FiPlus, FiShoppingCart, FiX } from "react-icons/fi";
+import { decryptTableParam, getQueryParam, isValidEncryptedParam } from "../utils/encryption";
 
 export default function Orders() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [categories, setCategories] = useState([{ value: "all", label: "Semua Menu" }]);
   const [menus, setMenus] = useState([]);
   const [isOrderSummaryCollapsed, setIsOrderSummaryCollapsed] = useState(true);
+  
+  // 🔹 Table selection state
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [showTableSelector, setShowTableSelector] = useState(false);
+  const [availableTables, setAvailableTables] = useState([]);
+
+  // 🔹 Load available tables from localStorage and handle URL parameter
+  useEffect(() => {
+    const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
+    setAvailableTables(savedTables);
+    
+    // Handle table parameter from URL after tables are loaded
+    const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
+    
+    if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
+      // Decrypt and find the table
+      const decryptedTableId = decryptTableParam(encryptedTableParam);
+      const foundTable = savedTables.find(table => table.id === decryptedTableId);
+      
+      if (foundTable) {
+        setSelectedTable(foundTable);
+        setShowTableSelector(false);
+      } else {
+        // Invalid table ID, show selector
+        setShowTableSelector(true);
+      }
+    } else {
+      // No table parameter, show selector
+      setShowTableSelector(true);
+    }
+  }, [location.search, location.pathname]);
 
   // 🔹 Ambil data menu dari localStorage
   useEffect(() => {
@@ -80,6 +114,10 @@ export default function Orders() {
 
   const handleCheckout = () => {
     if (orderItems.length === 0) return;
+    if (!selectedTable) {
+      alert("Silakan pilih meja terlebih dahulu!");
+      return;
+    }
 
     const orderData = {
       items: orderItems.map((item) => ({
@@ -89,7 +127,8 @@ export default function Orders() {
         catatan: item.notes,
       })),
       totalHarga: totalPrice,
-      namaMeja: "Meja 1",
+      namaMeja: selectedTable.name,
+      tableId: selectedTable.id,
     };
 
     // 🔹 Simpan data order ke localStorage TANPA hapus menus
@@ -97,8 +136,64 @@ export default function Orders() {
     navigate("/checkout", { state: orderData });
   };
 
+  // 🔹 Table Selector Component
+  const TableSelector = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Pilih Meja</h2>
+          <p className="text-gray-600 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
+        </div>
+        
+        <div className="p-4 max-h-96 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            {availableTables.map((table) => (
+              <button
+                key={table.id}
+                onClick={() => {
+                  setSelectedTable(table);
+                  setShowTableSelector(false);
+                }}
+                className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                  table.status === "kosong"
+                    ? "border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300"
+                    : "border-red-200 bg-red-50 opacity-60 cursor-not-allowed"
+                }`}
+                disabled={table.status !== "kosong"}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-800">{table.name}</h3>
+                  <div className={`w-3 h-3 rounded-full ${
+                    table.status === "kosong" ? "bg-green-500" : "bg-red-500"
+                  }`}></div>
+                </div>
+                <p className="text-xs text-gray-600">
+                  {table.status === "kosong" ? "Tersedia" : "Terisi"}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {availableTables.filter(t => t.status === "kosong").length === 0 && (
+          <div className="p-6 text-center border-t border-gray-200">
+            <div className="text-gray-500 mb-2">
+              <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-600">Tidak ada meja yang tersedia saat ini</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+      {/* Table Selector Modal */}
+      {showTableSelector && <TableSelector />}
+      
       {/* Enhanced Header */}
       <header className="mb-8 text-center">
         <div className="bg-white rounded-2xl shadow-lg p-6 mx-auto max-w-md">
@@ -110,7 +205,29 @@ export default function Orders() {
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             Order Menu
           </h1>
-          <p className="text-gray-600 mt-2 font-medium">Meja 1</p>
+          
+          {/* Selected Table Display */}
+          {selectedTable ? (
+            <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <p className="text-green-800 font-semibold">{selectedTable.name}</p>
+                <button
+                  onClick={() => setShowTableSelector(true)}
+                  className="ml-2 text-green-600 hover:text-green-800 transition-colors"
+                  title="Ganti meja"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
+              <p className="text-yellow-800 font-medium">Pilih meja untuk melanjutkan</p>
+            </div>
+          )}
         </div>
       </header>
 
@@ -372,6 +489,76 @@ export default function Orders() {
                   Tambah ke Pesanan - Rp {(selectedMenu.price * quantity).toLocaleString()}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table Selector Modal */}
+      {showTableSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-gray-800">Pilih Meja</h3>
+                {selectedTable && (
+                  <button
+                    onClick={() => setShowTableSelector(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <FiX className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
+              <p className="text-gray-600 mt-2">Pilih meja untuk melanjutkan pemesanan</p>
+            </div>
+            
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {availableTables.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8l-4 4m0 0l-4-4m4 4V3" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500">Tidak ada meja tersedia</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {availableTables.map((table) => (
+                    <button
+                      key={table.id}
+                      onClick={() => {
+                        setSelectedTable(table);
+                        setShowTableSelector(false);
+                      }}
+                      className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                        table.status === 'kosong'
+                          ? 'border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300'
+                          : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
+                      }`}
+                      disabled={table.status !== 'kosong'}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-gray-800">{table.name}</h4>
+                          <p className="text-sm text-gray-600">Kapasitas: {table.capacity} orang</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            table.status === 'kosong' ? 'bg-green-500' : 'bg-red-500'
+                          }`}></div>
+                          <span className={`text-sm font-medium ${
+                            table.status === 'kosong' ? 'text-green-700' : 'text-red-700'
+                          }`}>
+                            {table.status === 'kosong' ? 'Tersedia' : 'Terisi'}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
