@@ -1,45 +1,23 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Orders() {
   const navigate = useNavigate();
+  const [categories, setCategories] = useState([{ value: "all", label: "Semua Menu" }]);
+  const [menus, setMenus] = useState([]);
 
-  const [categories] = useState([
-    { value: "all", label: "Semua Menu" },
-    { value: "Makanan", label: "Makanan" },
-    { value: "Minuman", label: "Minuman" },
-  ]);
+  // 🔹 Ambil data menu dari localStorage
+  useEffect(() => {
+    const savedMenus = JSON.parse(localStorage.getItem("menus")) || [];
+    setMenus(savedMenus);
 
-  const [menus] = useState([
-    {
-      id: 1,
-      name: "Nasi Goreng",
-      price: 20000,
-      category: { value: "Makanan", label: "Makanan" },
-      image: "/assets/nasigoreng.jpg",
-    },
-    {
-      id: 2,
-      name: "Es Teh",
-      price: 5000,
-      category: { value: "Minuman", label: "Minuman" },
-      image: "/assets/esteh.jpg",
-    },
-    {
-      id: 3,
-      name: "Mie Ayam",
-      price: 18000,
-      category: { value: "Makanan", label: "Makanan" },
-      image: "/assets/mieayam.jpg",
-    },
-    {
-      id: 4,
-      name: "Jus Jeruk",
-      price: 12000,
-      category: { value: "Minuman", label: "Minuman" },
-      image: "/assets/jusjeruk.jpg",
-    },
-  ]);
+    // Update daftar kategori otomatis
+    const uniqueCats = [
+      { value: "all", label: "Semua Menu" },
+      ...new Map(savedMenus.map((m) => [m.category.value, m.category])).values(),
+    ];
+    setCategories(uniqueCats);
+  }, []);
 
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -60,17 +38,19 @@ export default function Orders() {
     });
   }, [menus, selectedCategory, searchTerm]);
 
+  // 🔹 Simpan orders ke localStorage biar bisa dipantau dari halaman lain
+  useEffect(() => {
+    localStorage.setItem("currentOrder", JSON.stringify(orderItems));
+  }, [orderItems]);
+
+  // 🔹 Fungsi order
   const addToOrder = (menu, qty = 1, note = "") => {
     const exist = orderItems.find((item) => item.id === menu.id);
     if (exist) {
       setOrderItems(
         orderItems.map((item) =>
           item.id === menu.id
-            ? {
-                ...item,
-                quantity: item.quantity + qty,
-                notes: note || item.notes,
-              }
+            ? { ...item, quantity: item.quantity + qty, notes: note || item.notes }
             : item
         )
       );
@@ -100,7 +80,6 @@ export default function Orders() {
   const handleCheckout = () => {
     if (orderItems.length === 0) return;
 
-    // Simpan juga ke localStorage biar aman kalau user refresh di checkout
     const orderData = {
       items: orderItems.map((item) => ({
         nama: item.name,
@@ -112,6 +91,7 @@ export default function Orders() {
       namaMeja: "Meja 1",
     };
 
+    // 🔹 Simpan data order ke localStorage TANPA hapus menus
     localStorage.setItem("orderData", JSON.stringify(orderData));
     navigate("/checkout", { state: orderData });
   };
@@ -162,7 +142,9 @@ export default function Orders() {
               <div>
                 <h3 className="font-semibold text-lg">{menu.name}</h3>
                 <p className="text-gray-500 text-sm">{menu.category.label}</p>
-                <p className="mt-2 font-bold">Rp {menu.price.toLocaleString()}</p>
+                <p className="mt-2 font-bold">
+                  Rp {parseInt(menu.price).toLocaleString()}
+                </p>
               </div>
               <button
                 onClick={() => {
@@ -178,7 +160,7 @@ export default function Orders() {
         ))}
       </div>
 
-      {/* Order Summary */}
+      {/* Ringkasan Order */}
       <div className="bg-white rounded-t-xl shadow-lg p-4 fixed bottom-0 left-0 right-0 md:relative md:max-w-md md:mx-auto">
         <h2 className="font-semibold text-lg mb-2">Ringkasan Order</h2>
         {orderItems.length === 0 ? (
@@ -238,8 +220,6 @@ export default function Orders() {
             <h2 className="text-xl font-semibold mb-4 text-center">
               {selectedMenu.name}
             </h2>
-
-            {/* Tombol Jumlah */}
             <div className="flex items-center justify-center mb-4">
               <button
                 onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
@@ -257,23 +237,16 @@ export default function Orders() {
                 +
               </button>
             </div>
-
-            {/* Catatan */}
-            <label className="block mb-2 text-sm font-medium text-gray-600">
-              Catatan (Opsional):
-            </label>
             <textarea
-              placeholder="Contoh: pedas, tanpa es, dsb."
+              placeholder="Catatan (opsional)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full border rounded px-3 py-2 mb-4"
             ></textarea>
-
-            {/* Tombol Aksi */}
             <div className="flex justify-between">
               <button
                 onClick={() => setShowModal(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 w-full mr-2"
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded w-1/2 mr-2"
               >
                 Batal
               </button>
@@ -284,7 +257,7 @@ export default function Orders() {
                   setQuantity(1);
                   setNotes("");
                 }}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full ml-2"
+                className="bg-green-600 text-white px-4 py-2 rounded w-1/2 ml-2"
               >
                 Tambah
               </button>

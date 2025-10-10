@@ -3,7 +3,6 @@ import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
 import Tables from "./pages/Tables";
 import Orders from "./pages/Orders";
-import OrderPage from "./pages/OrderPage";
 import Checkout from "./pages/Checkout";
 import ListOrders from "./pages/ListOrders";
 
@@ -14,7 +13,6 @@ function App() {
       <Route path="/menu" element={<Menu />} />
       <Route path="/tables" element={<Tables />} />
       <Route path="/orders" element={<Orders />} />
-      <Route path="/orderpage" element={<OrderPage />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/listorders" element={<ListOrders />} />
     </Routes>

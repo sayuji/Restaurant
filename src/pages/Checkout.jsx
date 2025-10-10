@@ -7,7 +7,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [orderData, setOrderData] = useState(null);
 
-  // Ambil data order dari location atau localStorage
+  // 🔹 Ambil data pesanan dari location atau localStorage
   useEffect(() => {
     if (location.state) {
       setOrderData(location.state);
@@ -26,10 +26,11 @@ export default function Checkout() {
     );
   }
 
+  // 🔹 Hitung total harga
   const totalHarga =
     orderData.items?.reduce((acc, item) => acc + item.harga * item.qty, 0) || 0;
 
-  // Fungsi konfirmasi pesanan
+  // 🔹 Fungsi konfirmasi pesanan
   const handleConfirm = async () => {
     const result = await Swal.fire({
       title: "Konfirmasi Pesanan?",
@@ -43,11 +44,11 @@ export default function Checkout() {
     });
 
     if (result.isConfirmed) {
-      // Ambil daftar pesanan yang sedang berlangsung
+      // 🔹 Ambil daftar pesanan yang sedang berlangsung (untuk TV Display)
       const existingOrders =
         JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
 
-      // Tambahkan pesanan baru ke daftar
+      // 🔹 Buat pesanan baru lengkap dengan waktu, tanggal, dan status
       const newOrder = {
         ...orderData,
         totalHarga,
@@ -56,15 +57,14 @@ export default function Checkout() {
         status: "Sedang Diproses",
       };
 
+      // 🔹 Tambahkan pesanan baru ke daftar
       existingOrders.push(newOrder);
-
-      // Simpan kembali ke localStorage
       localStorage.setItem("ordersOnProgress", JSON.stringify(existingOrders));
 
-      // Hapus orderData sementara (checkout)
+      // 🔹 Hapus order sementara (checkout)
       localStorage.removeItem("orderData");
 
-      // Tampilkan alert sukses
+      // 🔹 Tampilkan notifikasi sukses
       Swal.fire({
         title: "Berhasil!",
         text: "Pesanan berhasil dikonfirmasi 🎉",
@@ -74,7 +74,7 @@ export default function Checkout() {
         showConfirmButton: false,
       });
 
-      // Redirect ke halaman awal / sukses
+      // 🔹 Redirect ke halaman utama setelah delay 2 detik
       setTimeout(() => navigate("/"), 2000);
     }
   };
@@ -86,6 +86,7 @@ export default function Checkout() {
           Checkout Pesanan
         </h1>
 
+        {/* Daftar Pesanan */}
         <div className="mb-4">
           <h2 className="text-lg font-semibold mb-2">Daftar Pesanan:</h2>
           <div className="space-y-2">
@@ -113,11 +114,13 @@ export default function Checkout() {
           </div>
         </div>
 
+        {/* Total Harga */}
         <div className="flex justify-between text-lg font-semibold mb-4">
           <p>Total:</p>
           <p>Rp {totalHarga.toLocaleString()}</p>
         </div>
 
+        {/* Nama Meja */}
         <div className="mb-4">
           <p className="text-gray-600">
             <span className="font-semibold">Nama Meja:</span>{" "}
@@ -125,6 +128,7 @@ export default function Checkout() {
           </p>
         </div>
 
+        {/* Tombol Konfirmasi */}
         <button
           onClick={handleConfirm}
           className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition"

@@ -19,11 +19,6 @@ export default function MainLayout({ children }) {
           <Link to="/orders" className="hover:bg-blue-100 px-3 py-2 rounded">
             Orders
           </Link>
-          <Link to="/orderpage" className="hover:bg-blue-100 px-3 py-2 rounded">
-            Pesan Makanan
-          </Link>
-
-          {/* 🔥 Tambahan baru */}
           <Link
             to="/listorders"
             className="hover:bg-green-100 px-3 py-2 rounded text-green-700 font-medium"

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import MainLayout from "../layouts/MainLayout";
 import Select from "react-select";
 
@@ -9,25 +9,37 @@ export default function Menu() {
   ]);
 
   const [menus, setMenus] = useState([]);
-
   const [form, setForm] = useState({
     id: null,
     name: "",
     price: "",
     description: "",
     category: null,
+    image: null,
   });
 
   const [errors, setErrors] = useState({});
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategory, setNewCategory] = useState("");
-
-  // Search & Pagination
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Filtered & paginated menus
+  // ✅ Load menu dari localStorage SEKALI SAJA di awal
+  useEffect(() => {
+    const savedMenus = localStorage.getItem("menus");
+    if (savedMenus) {
+      setMenus(JSON.parse(savedMenus));
+    }
+  }, []);
+
+  // ✅ Simpan otomatis ke localStorage setiap kali menus berubah
+  useEffect(() => {
+    if (menus.length > 0) {
+      localStorage.setItem("menus", JSON.stringify(menus));
+    }
+  }, [menus]);
+
   const filteredMenus = useMemo(() => {
     return menus.filter(
       (menu) =>
@@ -42,7 +54,6 @@ export default function Menu() {
     currentPage * itemsPerPage
   );
 
-  // Tambah kategori
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (newCategory.trim() && !categories.find((c) => c.value === newCategory)) {
@@ -54,7 +65,17 @@ export default function Menu() {
     }
   };
 
-  // Tambah/Edit menu
+  // ✅ Convert gambar ke base64 (biar tetap muncul setelah reload)
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setForm({ ...form, image: reader.result });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleAddMenu = (e) => {
     e.preventDefault();
     let tempErrors = {};
@@ -76,6 +97,10 @@ export default function Menu() {
       tempErrors.category = "Kategori wajib dipilih";
       hasError = true;
     }
+    if (!form.image) {
+      tempErrors.image = "Gambar wajib diupload";
+      hasError = true;
+    }
 
     setErrors(tempErrors);
     if (hasError) return;
@@ -86,7 +111,14 @@ export default function Menu() {
       setMenus([...menus, { ...form, id: Date.now() }]);
     }
 
-    setForm({ id: null, name: "", price: "", description: "", category: null });
+    setForm({
+      id: null,
+      name: "",
+      price: "",
+      description: "",
+      category: null,
+      image: null,
+    });
     setErrors({});
   };
 
@@ -96,7 +128,9 @@ export default function Menu() {
 
   const handleDeleteMenu = (id) => {
     if (window.confirm("Yakin ingin menghapus menu ini?")) {
-      setMenus(menus.filter((m) => m.id !== id));
+      const updated = menus.filter((m) => m.id !== id);
+      setMenus(updated);
+      localStorage.setItem("menus", JSON.stringify(updated)); // ✅ langsung update storage
     }
   };
 
@@ -147,23 +181,42 @@ export default function Menu() {
             <textarea
               placeholder="Deskripsi"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
               className={`border rounded px-3 py-2 ${
                 errors.description ? "border-red-500" : ""
               }`}
             />
             {errors.description && (
-              <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+              <p className="text-red-500 text-sm mt-1">
+                {errors.description}
+              </p>
             )}
           </div>
 
-          {/* Dropdown kategori + tombol add */}
+          <div className="flex flex-col md:col-span-2">
+            <input type="file" accept="image/*" onChange={handleImageUpload} />
+            {errors.image && (
+              <p className="text-red-500 text-sm mt-1">{errors.image}</p>
+            )}
+            {form.image && (
+              <img
+                src={form.image}
+                alt="Preview"
+                className="w-32 h-32 object-cover mt-2 rounded"
+              />
+            )}
+          </div>
+
           <div className="flex items-center gap-2 md:col-span-2">
             <div className="flex-1 flex flex-col">
               <Select
                 options={categories}
                 value={form.category}
-                onChange={(selected) => setForm({ ...form, category: selected })}
+                onChange={(selected) =>
+                  setForm({ ...form, category: selected })
+                }
                 placeholder="Pilih kategori"
               />
               {errors.category && (
@@ -188,83 +241,41 @@ export default function Menu() {
         </form>
       </div>
 
-      {/* Modal Tambah Kategori */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">Tambah Kategori</h3>
-            <form onSubmit={handleAddCategory} className="flex flex-col gap-4">
-              <input
-                type="text"
-                placeholder="Nama Kategori"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="border rounded px-3 py-2"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryModal(false)}
-                  className="px-4 py-2 rounded border"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                  Simpan
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Search Bar */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Cari menu atau kategori..."
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="border rounded px-3 py-2 w-full md:w-full"
-        />
-      </div>
-
       {/* Tabel Daftar Menu */}
       <div className="bg-white shadow rounded-lg p-6 overflow-x-auto">
-        <h3 className="text-lg font-semibold mb-4">Daftar Menu</h3>
-        <table className="w-full min-w-[600px] border-collapse border">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border px-4 py-2">Nama</th>
-              <th className="border px-4 py-2">Harga</th>
-              <th className="border px-4 py-2">Deskripsi</th>
-              <th className="border px-4 py-2">Kategori</th>
-              <th className="border px-4 py-2">Aksi</th>
+        <table className="w-full border">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border px-3 py-2">Gambar</th>
+              <th className="border px-3 py-2">Nama</th>
+              <th className="border px-3 py-2">Harga</th>
+              <th className="border px-3 py-2">Kategori</th>
+              <th className="border px-3 py-2">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {paginatedMenus.map((menu) => (
               <tr key={menu.id}>
-                <td className="border px-4 py-2">{menu.name}</td>
-                <td className="border px-4 py-2">Rp {menu.price}</td>
-                <td className="border px-4 py-2">{menu.description}</td>
-                <td className="border px-4 py-2">{menu.category?.label}</td>
-                <td className="border px-4 py-2 flex gap-2">
+                <td className="border px-3 py-2 items-center">
+                  <img
+                    src={menu.image}
+                    alt={menu.name}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                </td>
+                <td className="border px-3 py-2">{menu.name}</td>
+                <td className="border px-3 py-2">Rp {menu.price}</td>
+                <td className="border px-3 py-2">{menu.category?.label}</td>
+                <td className="border px-3 py-2">
                   <button
                     onClick={() => handleEditMenu(menu)}
-                    className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                    className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleDeleteMenu(menu.id)}
-                    className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                    className="bg-red-600 text-white px-2 py-1 rounded"
                   >
                     Hapus
                   </button>
@@ -273,27 +284,6 @@ export default function Menu() {
             ))}
           </tbody>
         </table>
-
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-4">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(currentPage - 1)}
-            className="px-3 py-1 border rounded disabled:opacity-50"
-          >
-            Prev
-          </button>
-          <span>
-            Hal {currentPage} dari {totalPages || 1}
-          </span>
-          <button
-            disabled={currentPage === totalPages || totalPages === 0}
-            onClick={() => setCurrentPage(currentPage + 1)}
-            className="px-3 py-1 border rounded disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
       </div>
     </MainLayout>
   );
