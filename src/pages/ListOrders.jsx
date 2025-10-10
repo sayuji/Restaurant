@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 export default function ListOrders() {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmOrder, setConfirmOrder] = useState(null); // buat modal konfirmasi
 
   useEffect(() => {
     const fetchOrders = () => {
@@ -24,29 +26,32 @@ export default function ListOrders() {
     localStorage.setItem("ordersOnProgress", JSON.stringify(updatedOrders));
     setOrders(updatedOrders);
     setShowModal(false);
-    alert("Perubahan pesanan berhasil disimpan ✅");
+    toast.success("Perubahan pesanan berhasil disimpan ✅");
   };
 
   const handleComplete = (order) => {
-    const confirmFinish = window.confirm("Apakah yakin ingin menyelesaikan pesanan ini?");
-    if (!confirmFinish) return;
+    setConfirmOrder(order); // buka modal konfirmasi
+  };
 
-    // cuma hapus pesanan yg id-nya sama
-    const remainingOrders = orders.filter((o) => o.id !== order.id);
+  const confirmComplete = () => {
+    if (!confirmOrder) return;
+
+    const remainingOrders = orders.filter((o) => o.id !== confirmOrder.id);
     const doneOrders = JSON.parse(localStorage.getItem("ordersDone")) || [];
 
     localStorage.setItem("ordersOnProgress", JSON.stringify(remainingOrders));
     localStorage.setItem(
       "ordersDone",
-      JSON.stringify([...doneOrders, { ...order, status: "Selesai" }])
+      JSON.stringify([...doneOrders, { ...confirmOrder, status: "Selesai" }])
     );
     setOrders(remainingOrders);
 
-    alert(`Pesanan untuk ${order.namaMeja} telah diselesaikan ✅`);
+    toast.success(`Pesanan ${confirmOrder.namaMeja} diselesaikan ✅`);
+    setConfirmOrder(null);
   };
 
   const handleEditClick = (order) => {
-    setSelectedOrder(JSON.parse(JSON.stringify(order))); // clone biar aman
+    setSelectedOrder(JSON.parse(JSON.stringify(order)));
     setShowModal(true);
   };
 
@@ -78,7 +83,7 @@ export default function ListOrders() {
           {orders.map((order) => (
             <div
               key={order.id}
-              className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-green-500 relative"
+              className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-green-500"
             >
               <h2 className="text-2xl font-bold text-green-300 mb-2">
                 Meja: {order.namaMeja}
@@ -180,6 +185,36 @@ export default function ListOrders() {
                 className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg"
               >
                 Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Selesaikan */}
+      {confirmOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+          <div className="bg-gray-800 p-6 rounded-2xl w-80 text-center">
+            <h2 className="text-xl font-semibold mb-4 text-green-300">
+              Selesaikan Pesanan?
+            </h2>
+            <p className="text-gray-300 mb-6">
+              Apakah yakin ingin menyelesaikan pesanan{" "}
+              <span className="text-green-400">{confirmOrder.namaMeja}</span>?
+            </p>
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => setConfirmOrder(null)}
+                className="bg-gray-500 hover:bg-gray-600 px-4 py-2 rounded-lg w-1/2 mx-1"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmComplete}
+                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg w-1/2 mx-1"
+              >
+                Ya, Selesaikan
               </button>
             </div>
           </div>
