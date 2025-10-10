@@ -1,17 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
 
 export default function Tables() {
-  const [tables, setTables] = useState([
-    { id: 1, name: "Meja 1", status: "kosong" },
-    { id: 2, name: "Meja 2", status: "terisi" },
-    { id: 3, name: "Meja 3", status: "kosong" },
-  ]);
+  const [tables, setTables] = useState([]);
+
+  // 🔹 Load tables from localStorage on component mount
+  useEffect(() => {
+    const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
+    if (savedTables.length > 0) {
+      setTables(savedTables);
+    } else {
+      // Initialize with default tables if none exist
+      const defaultTables = [
+        { id: 1, name: "Meja 1", status: "kosong", capacity: 4 },
+        { id: 2, name: "Meja 2", status: "terisi", capacity: 6 },
+        { id: 3, name: "Meja 3", status: "kosong", capacity: 2 },
+      ];
+      setTables(defaultTables);
+      localStorage.setItem("tables", JSON.stringify(defaultTables));
+    }
+  }, []);
+
+  // 🔹 Save tables to localStorage whenever tables state changes
+  useEffect(() => {
+    if (tables.length > 0) {
+      localStorage.setItem("tables", JSON.stringify(tables));
+    }
+  }, [tables]);
 
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({});
-  const [form, setForm] = useState({ name: "", status: "kosong" });
+  const [form, setForm] = useState({ name: "", status: "kosong", capacity: 4 });
   const [statusFilter, setStatusFilter] = useState("all"); // New filter state
 
   // Dynamic base URL function
@@ -39,24 +59,25 @@ export default function Tables() {
   const openModal = (type, table = {}) => {
     setModalData({ ...table, type });
     if (type === "edit") {
-      setForm({ name: table.name, status: table.status });
+      setForm({ name: table.name, status: table.status, capacity: table.capacity || 4 });
     } else if (type === "add") {
-      setForm({ name: "", status: "kosong" });
+      setForm({ name: "", status: "kosong", capacity: 4 });
     }
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
-    setForm({ name: "", status: "kosong" });
+    setForm({ name: "", status: "kosong", capacity: 4 });
   };
 
   const handleAddTable = () => {
     if (!form.name) return alert("Isi nama meja dulu!");
     const newTable = {
-      id: tables.length ? tables[tables.length - 1].id + 1 : 1,
+      id: tables.length ? Math.max(...tables.map(t => t.id)) + 1 : 1,
       name: form.name,
       status: form.status,
+      capacity: parseInt(form.capacity) || 4,
     };
     setTables([...tables, newTable]);
     closeModal();
@@ -66,7 +87,12 @@ export default function Tables() {
     if (!form.name) return alert("Nama meja tidak boleh kosong!");
     setTables(
       tables.map((t) =>
-        t.id === modalData.id ? { ...t, name: form.name, status: form.status } : t
+        t.id === modalData.id ? { 
+          ...t, 
+          name: form.name, 
+          status: form.status, 
+          capacity: parseInt(form.capacity) || 4 
+        } : t
       )
     );
     closeModal();
@@ -323,6 +349,21 @@ export default function Tables() {
                       <option value="kosong">Kosong (Tersedia)</option>
                       <option value="terisi">Terisi (Sedang Digunakan)</option>
                     </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Kapasitas Meja
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      placeholder="Jumlah kursi"
+                      value={form.capacity}
+                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
                   </div>
                   
                   <div className="flex gap-3 pt-4">
