@@ -26,7 +26,7 @@ export default function ListOrders() {
     localStorage.setItem("ordersOnProgress", JSON.stringify(updatedOrders));
     setOrders(updatedOrders);
     setShowModal(false);
-    toast.success("Perubahan pesanan berhasil disimpan ✅");
+    toast.success("Perubahan pesanan berhasil disimpan");
   };
 
   const handleComplete = (order) => {
@@ -46,7 +46,7 @@ export default function ListOrders() {
     );
     setOrders(remainingOrders);
 
-    toast.success(`Pesanan ${confirmOrder.namaMeja} diselesaikan ✅`);
+    toast.success(`Pesanan ${confirmOrder.namaMeja} diselesaikan`);
     setConfirmOrder(null);
   };
 
