@@ -105,24 +105,30 @@ export default function Orders() {
       </header>
 
       {/* Filter & Search */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 items-center justify-between">
-        <select
-          className="border rounded px-3 py-2 w-full md:w-48"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
+      <div className="flex flex-col gap-4 mb-6">
+        {/* Category Pills */}
+        <div className="flex flex-wrap gap-2">
           {categories.map((cat) => (
-            <option key={cat.value} value={cat.value}>
+            <button
+              key={cat.value}
+              onClick={() => setSelectedCategory(cat.value)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                selectedCategory === cat.value
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
               {cat.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
+        {/* Search Input */}
         <input
           type="text"
           placeholder="Cari menu..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="border rounded px-3 py-2 w-full md:flex-1"
+          className="border rounded px-3 py-2 w-full"
         />
       </div>
 
