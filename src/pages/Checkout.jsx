@@ -50,6 +50,7 @@ export default function Checkout() {
 
       // 🔹 Buat pesanan baru lengkap dengan waktu, tanggal, dan status
       const newOrder = {
+        id: Date.now(),
         ...orderData,
         totalHarga,
         waktu: new Date().toLocaleTimeString(),
