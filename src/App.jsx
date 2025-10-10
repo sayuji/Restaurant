@@ -39,9 +39,7 @@ export default function App() {
         path="/orders"
         element={
           <ProtectedRoute>
-            <MainLayout>
-              <Orders />
-            </MainLayout>
+            <Orders />
           </ProtectedRoute>
         }
       />
@@ -49,9 +47,7 @@ export default function App() {
         path="/checkout"
         element={
           <ProtectedRoute>
-            <MainLayout>
-              <Checkout />
-            </MainLayout>
+            <Checkout />
           </ProtectedRoute>
         }
       />
