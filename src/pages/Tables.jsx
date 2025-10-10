@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { encryptTableParam } from "../utils/encryption";
 
 export default function Tables() {
   const [tables, setTables] = useState([
@@ -182,7 +183,7 @@ export default function Tables() {
                 <div className="flex justify-center">
                   <div className={`p-3 bg-white rounded-lg border-2 ${table.status === "kosong" ? "border-green-200" : "border-red-200"}`}>
                     <QRCodeCanvas
-                      value={`${getBaseUrl()}/order?table=${table.id}`}
+                      value={`${getBaseUrl()}/order?table=${encryptTableParam(table.id)}`}
                       size={120}
                       className={table.status === "kosong" ? "opacity-100" : "opacity-50"}
                     />
