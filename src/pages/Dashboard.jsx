@@ -1,4 +1,3 @@
-import MainLayout from "../layouts/MainLayout";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
@@ -15,7 +14,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <MainLayout>
+    <div>
       <h2 className="text-3xl font-bold mb-8 text-green-700">
         Dashboard Overview 🍽️
       </h2>
@@ -67,6 +66,6 @@ export default function Dashboard() {
           </LineChart>
         </ResponsiveContainer>
       </motion.div>
-    </MainLayout>
+    </div>
   );
 }

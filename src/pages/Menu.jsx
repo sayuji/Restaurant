@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import MainLayout from "../layouts/MainLayout";
 import Select from "react-select";
 
 export default function Menu() {
@@ -135,7 +134,7 @@ export default function Menu() {
   };
 
   return (
-    <MainLayout>
+    <div>
       <h2 className="text-2xl font-bold mb-6">Manajemen Menu</h2>
 
       {/* Form Tambah/Edit Menu */}
@@ -285,6 +284,6 @@ export default function Menu() {
           </tbody>
         </table>
       </div>
-    </MainLayout>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import MainLayout from "../layouts/MainLayout";
 import { QRCodeCanvas } from "qrcode.react";
 
 export default function Tables() {
@@ -55,7 +54,7 @@ export default function Tables() {
   };
 
   return (
-    <MainLayout>
+    <div>
       <h2 className="text-2xl font-bold mb-6">Manajemen Meja</h2>
 
       <button
@@ -180,6 +179,6 @@ export default function Tables() {
           </div>
         </div>
       )}
-    </MainLayout>
+    </div>
   );
 }

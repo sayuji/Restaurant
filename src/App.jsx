@@ -48,9 +48,7 @@ export default function App() {
         path="/list-orders"
         element={
           <ProtectedRoute>
-            <MainLayout>
-              <ListOrders />
-            </MainLayout>
+            <ListOrders />
           </ProtectedRoute>
         }
       />
