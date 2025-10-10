@@ -11,6 +11,7 @@ export default function Tables() {
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState({});
   const [form, setForm] = useState({ name: "", status: "kosong" });
+  const [statusFilter, setStatusFilter] = useState("all"); // New filter state
 
   // Dynamic base URL function
   const getBaseUrl = () => {
@@ -20,6 +21,18 @@ export default function Tables() {
       // Server-side fallback
       return 'http://localhost:3001';
     }
+  };
+
+  // Filter tables based on status
+  const filteredTables = tables.filter(table => {
+    if (statusFilter === "all") return true;
+    return table.status === statusFilter;
+  });
+
+  // Get count for each status
+  const getStatusCount = (status) => {
+    if (status === "all") return tables.length;
+    return tables.filter(table => table.status === status).length;
   };
 
   const openModal = (type, table = {}) => {
@@ -80,11 +93,66 @@ export default function Tables() {
         <p className="text-gray-600">Kelola meja restoran dan QR code untuk pemesanan</p>
       </div>
 
-      {/* Action Button */}
-      <div className="mb-6">
+      {/* Filter Pills and Action Button */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Filter Pills */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              statusFilter === "all"
+                ? "bg-blue-600 text-white shadow-lg"
+                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-current opacity-70"></div>
+            Semua Meja
+            <span className={`px-2 py-0.5 rounded-full text-xs ${
+              statusFilter === "all" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-600"
+            }`}>
+              {getStatusCount("all")}
+            </span>
+          </button>
+          
+          <button
+            onClick={() => setStatusFilter("kosong")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              statusFilter === "kosong"
+                ? "bg-green-600 text-white shadow-lg"
+                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            Tersedia
+            <span className={`px-2 py-0.5 rounded-full text-xs ${
+              statusFilter === "kosong" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
+            }`}>
+              {getStatusCount("kosong")}
+            </span>
+          </button>
+          
+          <button
+            onClick={() => setStatusFilter("terisi")}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              statusFilter === "terisi"
+                ? "bg-red-600 text-white shadow-lg"
+                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+            Terisi
+            <span className={`px-2 py-0.5 rounded-full text-xs ${
+              statusFilter === "terisi" ? "bg-red-500 text-white" : "bg-gray-200 text-gray-600"
+            }`}>
+              {getStatusCount("terisi")}
+            </span>
+          </button>
+        </div>
+
+        {/* Action Button */}
         <button
           onClick={() => openModal("add")}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
+          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2 justify-center sm:justify-start"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -95,7 +163,7 @@ export default function Tables() {
 
       {/* Tables Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {tables.map((table) => (
+        {filteredTables.map((table) => (
           <div key={table.id} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
             {/* Card Header */}
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-4">
