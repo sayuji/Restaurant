@@ -7,6 +7,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [orderData, setOrderData] = useState(null);
 
+  // Ambil data order dari location atau localStorage
   useEffect(() => {
     if (location.state) {
       setOrderData(location.state);
@@ -28,6 +29,7 @@ export default function Checkout() {
   const totalHarga =
     orderData.items?.reduce((acc, item) => acc + item.harga * item.qty, 0) || 0;
 
+  // Fungsi konfirmasi pesanan
   const handleConfirm = async () => {
     const result = await Swal.fire({
       title: "Konfirmasi Pesanan?",
@@ -41,6 +43,28 @@ export default function Checkout() {
     });
 
     if (result.isConfirmed) {
+      // Ambil daftar pesanan yang sedang berlangsung
+      const existingOrders =
+        JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
+
+      // Tambahkan pesanan baru ke daftar
+      const newOrder = {
+        ...orderData,
+        totalHarga,
+        waktu: new Date().toLocaleTimeString(),
+        tanggal: new Date().toLocaleDateString(),
+        status: "Sedang Diproses",
+      };
+
+      existingOrders.push(newOrder);
+
+      // Simpan kembali ke localStorage
+      localStorage.setItem("ordersOnProgress", JSON.stringify(existingOrders));
+
+      // Hapus orderData sementara (checkout)
+      localStorage.removeItem("orderData");
+
+      // Tampilkan alert sukses
       Swal.fire({
         title: "Berhasil!",
         text: "Pesanan berhasil dikonfirmasi 🎉",
@@ -50,7 +74,7 @@ export default function Checkout() {
         showConfirmButton: false,
       });
 
-      localStorage.removeItem("orderData");
+      // Redirect ke halaman awal / sukses
       setTimeout(() => navigate("/"), 2000);
     }
   };
