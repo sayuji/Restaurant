@@ -1,42 +1,70 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Home,
+  Utensils,
+  ShoppingCart,
+  Table,
+  LogOut,
+  List,
+} from "lucide-react";
 
 export default function MainLayout({ children }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    if (window.confirm("Yakin ingin logout?")) {
+      localStorage.removeItem("user");
+      navigate("/login");
+    }
+  };
+
+  const menuItems = [
+    { name: "Dashboard", icon: <Home size={20} />, path: "/" },
+    { name: "Menu", icon: <Utensils size={20} />, path: "/menu" },
+    { name: "Orders", icon: <ShoppingCart size={20} />, path: "/orders" },
+    { name: "List Orders", icon: <List size={20} />, path: "/list-orders" },
+    { name: "Tables", icon: <Table size={20} />, path: "/tables" },
+  ];
+
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100 text-gray-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md p-4">
-        <h2 className="text-2xl font-bold text-blue-600 mb-6">Restaurant</h2>
-        <nav className="flex flex-col gap-3">
-          <Link to="/" className="hover:bg-blue-100 px-3 py-2 rounded">
-            Dashboard
-          </Link>
-          <Link to="/menu" className="hover:bg-blue-100 px-3 py-2 rounded">
-            Menu
-          </Link>
-          <Link to="/tables" className="hover:bg-blue-100 px-3 py-2 rounded">
-            Tables
-          </Link>
-          <Link to="/orders" className="hover:bg-blue-100 px-3 py-2 rounded">
-            Orders
-          </Link>
-          <Link
-            to="/listorders"
-            className="hover:bg-green-100 px-3 py-2 rounded text-green-700 font-medium"
+      <aside className="w-64 bg-white shadow-md flex flex-col justify-between">
+        <div>
+          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200">
+            🍽️ Restaurant App
+          </div>
+          <nav className="p-4 space-y-3">
+            {menuItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 ${
+                  window.location.pathname === item.path
+                    ? "bg-gray-200 text-gray-900"
+                    : "text-gray-700"
+                }`}
+              >
+                {item.icon}
+                {item.name}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        {/* Tombol logout */}
+        <div className="p-4 border-t border-gray-200">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 text-red-600 hover:bg-red-100 rounded-lg font-semibold transition"
           >
-            List Orders (TV)
-          </Link>
-        </nav>
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white shadow p-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold">RC Restaurant & Cafe</h1>
-          <div className="text-sm text-gray-600">Welcome, Admin</div>
-        </header>
-
-        <main className="p-6 overflow-y-auto">{children}</main>
-      </div>
+      {/* Main content */}
+      <main className="flex-1 p-6 overflow-y-auto">{children}</main>
     </div>
   );
 }
