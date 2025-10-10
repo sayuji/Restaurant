@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Menu from "./pages/Menu";
 import Orders from "./pages/Orders";
 import Checkout from "./pages/Checkout";
 import ListOrders from "./pages/ListOrders";
@@ -20,6 +21,16 @@ export default function App() {
           <ProtectedRoute>
             <MainLayout>
               <Dashboard />
+            </MainLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/menu"
+        element={
+          <ProtectedRoute>
+            <MainLayout>
+              <Menu />
             </MainLayout>
           </ProtectedRoute>
         }
