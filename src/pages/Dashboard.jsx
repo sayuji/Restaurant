@@ -1,17 +1,74 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function Dashboard() {
-  // Data dummy untuk grafik penjualan
-  const data = [
-    { day: "Senin", sales: 2500000 },
-    { day: "Selasa", sales: 3200000 },
-    { day: "Rabu", sales: 2800000 },
-    { day: "Kamis", sales: 4000000 },
-    { day: "Jumat", sales: 3800000 },
-    { day: "Sabtu", sales: 5000000 },
-    { day: "Minggu", sales: 4700000 },
-  ];
+  const [todaySales, setTodaySales] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [activeTables, setActiveTables] = useState(0);
+  const [popularMenu, setPopularMenu] = useState("-");
+  const [weeklyData, setWeeklyData] = useState([]);
+
+  useEffect(() => {
+    const doneOrders = JSON.parse(localStorage.getItem("ordersDone")) || [];
+    const progressOrders = JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
+
+    // =====================
+    // 1️⃣ Penjualan Hari Ini
+    // =====================
+    const today = new Date().toLocaleDateString("id-ID");
+    const todayOrders = doneOrders.filter((o) => o.tanggal === today);
+    const totalTodaySales = todayOrders.reduce(
+      (sum, o) => sum + (o.totalHarga || 0),
+      0
+    );
+    setTodaySales(totalTodaySales);
+
+    // =====================
+    // 2️⃣ Total Orders
+    // =====================
+    setTotalOrders(doneOrders.length);
+
+    // =====================
+    // 3️⃣ Meja Terisi
+    // =====================
+    setActiveTables(progressOrders.length);
+
+    // =====================
+    // 4️⃣ Menu Terlaris
+    // =====================
+    const itemCount = {};
+    doneOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        itemCount[item.nama] = (itemCount[item.nama] || 0) + item.qty;
+      });
+    });
+    const mostPopular =
+      Object.entries(itemCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+    setPopularMenu(mostPopular);
+
+    // =====================
+    // 5️⃣ Data Penjualan Mingguan
+    // =====================
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    const weekSales = days.map((day, index) => {
+      const dayOrders = doneOrders.filter((o) => {
+        const d = new Date(o.waktuFull || o.tanggal);
+        return d.getDay() === index;
+      });
+      const totalSales = dayOrders.reduce((sum, o) => sum + o.totalHarga, 0);
+      return { day, sales: totalSales };
+    });
+    setWeeklyData(weekSales);
+  }, []);
 
   return (
     <div>
@@ -22,10 +79,26 @@ export default function Dashboard() {
       {/* Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {[
-          { label: "Penjualan Hari Ini", value: "Rp 2.500.000", color: "bg-green-100 text-green-700" },
-          { label: "Total Orders", value: "120", color: "bg-blue-100 text-blue-700" },
-          { label: "Meja Terisi", value: "15/20", color: "bg-yellow-100 text-yellow-700" },
-          { label: "Menu Terlaris", value: "Nasi Goreng", color: "bg-red-100 text-red-700" },
+          {
+            label: "Penjualan Hari Ini",
+            value: `Rp ${todaySales.toLocaleString()}`,
+            color: "bg-green-100 text-green-700",
+          },
+          {
+            label: "Total Orders",
+            value: totalOrders,
+            color: "bg-blue-100 text-blue-700",
+          },
+          {
+            label: "Meja Terisi",
+            value: `${activeTables}`,
+            color: "bg-yellow-100 text-yellow-700",
+          },
+          {
+            label: "Menu Terlaris",
+            value: popularMenu,
+            color: "bg-red-100 text-red-700",
+          },
         ].map((card, index) => (
           <motion.div
             key={index}
@@ -51,7 +124,7 @@ export default function Dashboard() {
           Statistik Penjualan Mingguan
         </h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
+          <LineChart data={weeklyData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="day" />
             <YAxis />

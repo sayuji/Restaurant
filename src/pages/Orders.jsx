@@ -10,21 +10,17 @@ export default function Orders() {
   const [menus, setMenus] = useState([]);
   const [isOrderSummaryCollapsed, setIsOrderSummaryCollapsed] = useState(true);
   
-  // 🔹 Table selection state
   const [selectedTable, setSelectedTable] = useState(null);
   const [showTableSelector, setShowTableSelector] = useState(false);
   const [availableTables, setAvailableTables] = useState([]);
 
-  // 🔹 Load available tables from localStorage and handle URL parameter
   useEffect(() => {
     const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
     setAvailableTables(savedTables);
     
-    // Handle table parameter from URL after tables are loaded
     const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
     
     if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
-      // Decrypt and find the table
       const decryptedTableId = decryptTableParam(encryptedTableParam);
       const foundTable = savedTables.find(table => table.id === decryptedTableId);
       
@@ -32,21 +28,17 @@ export default function Orders() {
         setSelectedTable(foundTable);
         setShowTableSelector(false);
       } else {
-        // Invalid table ID, show selector
         setShowTableSelector(true);
       }
     } else {
-      // No table parameter, show selector
       setShowTableSelector(true);
     }
   }, [location.search, location.pathname]);
 
-  // 🔹 Ambil data menu dari localStorage
   useEffect(() => {
     const savedMenus = JSON.parse(localStorage.getItem("menus")) || [];
     setMenus(savedMenus);
 
-    // Update daftar kategori otomatis
     const uniqueCats = [
       { value: "all", label: "Semua Menu" },
       ...new Map(savedMenus.map((m) => [m.category.value, m.category])).values(),
@@ -73,12 +65,10 @@ export default function Orders() {
     });
   }, [menus, selectedCategory, searchTerm]);
 
-  // 🔹 Simpan orders ke localStorage biar bisa dipantau dari halaman lain
   useEffect(() => {
     localStorage.setItem("currentOrder", JSON.stringify(orderItems));
   }, [orderItems]);
 
-  // 🔹 Fungsi order
   const addToOrder = (menu, qty = 1, note = "") => {
     const exist = orderItems.find((item) => item.id === menu.id);
     if (exist) {
@@ -113,28 +103,37 @@ export default function Orders() {
   );
 
   const handleCheckout = () => {
-    if (orderItems.length === 0) return;
-    if (!selectedTable) {
-      alert("Silakan pilih meja terlebih dahulu!");
-      return;
-    }
+  if (orderItems.length === 0) return;
+  if (!selectedTable) {
+    alert("Silakan pilih meja terlebih dahulu!");
+    return;
+  }
 
-    const orderData = {
-      items: orderItems.map((item) => ({
-        nama: item.name,
-        qty: item.quantity,
-        harga: item.price,
-        catatan: item.notes,
-      })),
-      totalHarga: totalPrice,
-      namaMeja: selectedTable.name,
-      tableId: selectedTable.id,
-    };
-
-    // 🔹 Simpan data order ke localStorage TANPA hapus menus
-    localStorage.setItem("orderData", JSON.stringify(orderData));
-    navigate("/checkout", { state: orderData });
+  const orderData = {
+    items: orderItems.map((item) => ({
+      nama: item.name,
+      qty: item.quantity,
+      harga: item.price,
+      catatan: item.notes,
+    })),
+    totalHarga: totalPrice,
+    namaMeja: selectedTable.name,
+    tableId: selectedTable.id,
   };
+
+  // 🔹 Update status meja menjadi "terisi"
+  const tables = JSON.parse(localStorage.getItem("tables")) || [];
+  const updatedTables = tables.map((t) =>
+    t.id === selectedTable.id ? { ...t, status: "terisi" } : t
+  );
+  localStorage.setItem("tables", JSON.stringify(updatedTables));
+
+  // 🔹 Simpan data order
+  localStorage.setItem("orderData", JSON.stringify(orderData));
+
+  navigate("/checkout", { state: orderData });
+};
+
 
   // 🔹 Table Selector Component
   const TableSelector = () => (

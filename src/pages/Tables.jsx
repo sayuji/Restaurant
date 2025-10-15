@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
 
 export default function Tables() {
+  const navigate = useNavigate();
   const [tables, setTables] = useState([]);
 
   // 🔹 Load tables from localStorage on component mount
@@ -111,6 +113,25 @@ export default function Tables() {
       return `${baseClasses} bg-red-100 text-red-800`;
     }
   };
+
+  const handleCompleteOrder = () => {
+  const orderData = JSON.parse(localStorage.getItem("orderData"));
+  if (!orderData?.tableId) return;
+
+  // 🔹 Ubah meja jadi "kosong" lagi
+  const tables = JSON.parse(localStorage.getItem("tables")) || [];
+  const updatedTables = tables.map((t) =>
+    t.id === orderData.tableId ? { ...t, status: "kosong" } : t
+  );
+  localStorage.setItem("tables", JSON.stringify(updatedTables));
+
+  // 🔹 Hapus order data setelah selesai
+  localStorage.removeItem("orderData");
+
+  alert("Pesanan selesai! Meja sudah dikosongkan.");
+  navigate("/tables");
+};
+
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">

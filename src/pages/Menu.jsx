@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import Select from "react-select";
+import CategoryModal from "../components/CategoryModal";
+import ConfirmModal from "../components/ConfirmModal";
+import MenuList from "../components/MenuList";
 
 export default function Menu() {
   const [categories, setCategories] = useState([
@@ -22,23 +25,46 @@ export default function Menu() {
   const [newCategory, setNewCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [menuToDelete, setMenuToDelete] = useState(null);
+
+  // 🔹 jumlah item per halaman
   const itemsPerPage = 5;
 
-  // ✅ Load menu dari localStorage SEKALI SAJA di awal
+  // 🧩 Load data dari localStorage (sekali di awal)
   useEffect(() => {
-    const savedMenus = localStorage.getItem("menus");
-    if (savedMenus) {
-      setMenus(JSON.parse(savedMenus));
+    try {
+      const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
+      const savedCategories = JSON.parse(localStorage.getItem("categories") || "[]");
+
+      if (Array.isArray(savedMenus) && savedMenus.length > 0) {
+        setMenus(savedMenus);
+      }
+
+      if (Array.isArray(savedCategories) && savedCategories.length > 0) {
+        setCategories(savedCategories);
+      }
+    } catch (error) {
+      console.error("Gagal membaca localStorage:", error);
     }
   }, []);
 
-  // ✅ Simpan otomatis ke localStorage setiap kali menus berubah
+  // 💾 Simpan otomatis setiap kali menus berubah
   useEffect(() => {
-    if (menus.length > 0) {
+    if (menus.length >= 0) {
       localStorage.setItem("menus", JSON.stringify(menus));
     }
   }, [menus]);
 
+  // 💾 Simpan otomatis setiap kali categories berubah
+  useEffect(() => {
+    if (categories.length >= 0) {
+      localStorage.setItem("categories", JSON.stringify(categories));
+    }
+  }, [categories]);
+
+
+  // ✅ Filter menu berdasarkan search
   const filteredMenus = useMemo(() => {
     return menus.filter(
       (menu) =>
@@ -47,24 +73,33 @@ export default function Menu() {
     );
   }, [menus, searchTerm]);
 
+  // ✅ Pagination logic
   const totalPages = Math.ceil(filteredMenus.length / itemsPerPage);
   const paginatedMenus = filteredMenus.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
+  // ✅ Tambah kategori baru
   const handleAddCategory = (e) => {
     e.preventDefault();
-    if (newCategory.trim() && !categories.find((c) => c.value === newCategory)) {
+    if (
+      newCategory.trim() &&
+      !categories.find((c) => c.value === newCategory)
+    ) {
       const newCat = { value: newCategory, label: newCategory };
-      setCategories([...categories, newCat]);
+      const updatedCategories = [...categories, newCat];
+      setCategories(updatedCategories);
       setForm({ ...form, category: newCat });
       setNewCategory("");
       setShowCategoryModal(false);
+
+      // 💾 Simpan ke localStorage juga
+      localStorage.setItem("categories", JSON.stringify(updatedCategories));
     }
   };
 
-  // ✅ Convert gambar ke base64 (biar tetap muncul setelah reload)
+  // ✅ Upload gambar
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -75,6 +110,7 @@ export default function Menu() {
     reader.readAsDataURL(file);
   };
 
+  // ✅ Tambah/Edit menu
   const handleAddMenu = (e) => {
     e.preventDefault();
     let tempErrors = {};
@@ -105,11 +141,14 @@ export default function Menu() {
     if (hasError) return;
 
     if (form.id) {
+      // Edit mode
       setMenus(menus.map((m) => (m.id === form.id ? form : m)));
     } else {
+      // Tambah baru
       setMenus([...menus, { ...form, id: Date.now() }]);
     }
 
+    // Reset form
     setForm({
       id: null,
       name: "",
@@ -121,27 +160,37 @@ export default function Menu() {
     setErrors({});
   };
 
+  // ✅ Edit menu
   const handleEditMenu = (menu) => {
     setForm(menu);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // ✅ Buka modal konfirmasi hapus
   const handleDeleteMenu = (id) => {
-    if (window.confirm("Yakin ingin menghapus menu ini?")) {
-      const updated = menus.filter((m) => m.id !== id);
-      setMenus(updated);
-      localStorage.setItem("menus", JSON.stringify(updated)); // ✅ langsung update storage
-    }
+    setMenuToDelete(id);
+    setShowConfirm(true);
+  };
+
+  // ✅ Konfirmasi hapus
+  const confirmDelete = () => {
+    const updated = menus.filter((m) => m.id !== menuToDelete);
+    setMenus(updated);
+    localStorage.setItem("menus", JSON.stringify(updated));
+    setShowConfirm(false);
+    setMenuToDelete(null);
   };
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6">Manajemen Menu</h2>
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-6">📋 Manajemen Menu</h2>
 
       {/* Form Tambah/Edit Menu */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4">
           {form.id ? "Edit Menu" : "Tambah Menu"}
         </h3>
+
         <form
           onSubmit={handleAddMenu}
           className="grid grid-cols-1 md:grid-cols-2 gap-4"
@@ -240,50 +289,74 @@ export default function Menu() {
         </form>
       </div>
 
-      {/* Tabel Daftar Menu */}
+      {/* Tabel Menu List */}
       <div className="bg-white shadow rounded-lg p-6 overflow-x-auto">
-        <table className="w-full border">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-3 py-2">Gambar</th>
-              <th className="border px-3 py-2">Nama</th>
-              <th className="border px-3 py-2">Harga</th>
-              <th className="border px-3 py-2">Kategori</th>
-              <th className="border px-3 py-2">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedMenus.map((menu) => (
-              <tr key={menu.id}>
-                <td className="border px-3 py-2 items-center">
-                  <img
-                    src={menu.image}
-                    alt={menu.name}
-                    className="w-16 h-16 object-cover rounded"
-                  />
-                </td>
-                <td className="border px-3 py-2">{menu.name}</td>
-                <td className="border px-3 py-2">Rp {menu.price}</td>
-                <td className="border px-3 py-2">{menu.category?.label}</td>
-                <td className="border px-3 py-2">
-                  <button
-                    onClick={() => handleEditMenu(menu)}
-                    className="bg-yellow-500 text-white px-2 py-1 rounded mr-2"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteMenu(menu.id)}
-                    className="bg-red-600 text-white px-2 py-1 rounded"
-                  >
-                    Hapus
-                  </button>
-                </td>
-              </tr>
+        <MenuList
+          menus={paginatedMenus}
+          onEdit={handleEditMenu}
+          onDelete={handleDeleteMenu}
+        />
+
+        {/* Pagination Control */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center mt-4 gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 rounded border ${
+                currentPage === 1
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-white hover:bg-gray-100"
+              }`}
+            >
+              Prev
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`px-3 py-1 rounded border ${
+                  currentPage === i + 1
+                    ? "bg-blue-600 text-white"
+                    : "bg-white hover:bg-gray-100"
+                }`}
+              >
+                {i + 1}
+              </button>
             ))}
-          </tbody>
-        </table>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 rounded border ${
+                currentPage === totalPages
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-white hover:bg-gray-100"
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Modal Tambah Kategori */}
+      <CategoryModal
+        show={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        newCategory={newCategory}
+        setNewCategory={setNewCategory}
+        onSave={handleAddCategory}
+      />
+
+      {/* Modal Konfirmasi Hapus */}
+      <ConfirmModal
+        show={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={confirmDelete}
+        message="Yakin ingin menghapus menu ini?"
+      />
     </div>
   );
 }

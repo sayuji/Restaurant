@@ -6,6 +6,8 @@ import {
   Table,
   LogOut,
   List,
+  Settings,
+  Clock,
 } from "lucide-react";
 
 export default function MainLayout({ children }) {
@@ -23,20 +25,21 @@ export default function MainLayout({ children }) {
     { name: "Menu", icon: <Utensils size={20} />, path: "/menu" },
     { name: "Orders", icon: <ShoppingCart size={20} />, path: "/orders" },
     { name: "List Orders", icon: <List size={20} />, path: "/list-orders" },
+    { name: "History", icon: <Clock size={20} />, path: "/history-orders" },
     { name: "Tables", icon: <Table size={20} />, path: "/tables" },
   ];
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-900 overflow-hidden">
-      {/* Sidebar - Fixed with separate scroll */}
+      {/* Sidebar */}
       <aside className="w-64 bg-white shadow-md flex flex-col fixed left-0 top-0 h-full z-10">
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Header - Fixed */}
+          {/* Header */}
           <div className="text-2xl font-bold text-center py-6 border-b border-gray-200 flex-shrink-0">
             🍽️ Restaurant App
           </div>
-          
-          {/* Navigation - Scrollable */}
+
+          {/* Navigation */}
           <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
             {menuItems.map((item) => (
               <Link
@@ -52,6 +55,19 @@ export default function MainLayout({ children }) {
                 {item.name}
               </Link>
             ))}
+
+            {/* ✅ Settings menu item */}
+            <Link
+              to="/settings"
+              className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 ${
+                window.location.pathname === "/settings"
+                  ? "bg-gray-200 text-gray-900"
+                  : "text-gray-700"
+              }`}
+            >
+              <Settings size={20} />
+              Settings
+            </Link>
           </nav>
         </div>
 
@@ -66,11 +82,9 @@ export default function MainLayout({ children }) {
         </div>
       </aside>
 
-      {/* Main content - Independent scroll with left margin for sidebar */}
+      {/* Main content */}
       <main className="flex-1 ml-64 h-full overflow-y-auto">
-        <div className="p-6">
-          {children}
-        </div>
+        <div className="p-6">{children}</div>
       </main>
     </div>
   );
