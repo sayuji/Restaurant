@@ -30,12 +30,12 @@ export default function MainLayout({ children }) {
   ];
 
   return (
-    <div className="flex h-screen bg-gray-100 text-gray-900 overflow-hidden">
+    <div className="flex h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 overflow-hidden transition-colors duration-300">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md flex flex-col fixed left-0 top-0 h-full z-10">
+      <aside className="w-64 bg-white dark:bg-gray-800 shadow-md flex flex-col fixed left-0 top-0 h-full z-10 transition-colors duration-300">
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200 flex-shrink-0">
+          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             🍽️ Restaurant App
           </div>
 
@@ -45,10 +45,10 @@ export default function MainLayout({ children }) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 ${
+                className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 dark:hover:bg-gray-700 ${
                   window.location.pathname === item.path
-                    ? "bg-gray-200 text-gray-900"
-                    : "text-gray-700"
+                    ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
+                    : "text-gray-700 dark:text-gray-300"
                 }`}
               >
                 {item.icon}
@@ -59,10 +59,10 @@ export default function MainLayout({ children }) {
             {/* ✅ Settings menu item */}
             <Link
               to="/settings"
-              className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 ${
+              className={`flex items-center gap-3 p-2 rounded-lg transition font-medium hover:bg-gray-100 dark:hover:bg-gray-700 ${
                 window.location.pathname === "/settings"
-                  ? "bg-gray-200 text-gray-900"
-                  : "text-gray-700"
+                  ? "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
+                  : "text-gray-700 dark:text-gray-300"
               }`}
             >
               <Settings size={20} />
@@ -72,10 +72,10 @@ export default function MainLayout({ children }) {
         </div>
 
         {/* Logout Button - Fixed at bottom */}
-        <div className="p-4 border-t border-gray-200 flex-shrink-0">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 text-red-600 hover:bg-red-100 rounded-lg font-semibold transition"
+            className="w-full flex items-center justify-center gap-2 py-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg font-semibold transition"
           >
             <LogOut size={18} /> Logout
           </button>
@@ -83,7 +83,7 @@ export default function MainLayout({ children }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 ml-64 h-full overflow-y-auto">
+      <main className="flex-1 ml-64 h-full overflow-y-auto bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         <div className="p-6">{children}</div>
       </main>
     </div>

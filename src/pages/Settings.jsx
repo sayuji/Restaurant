@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Moon,
   Sun,
@@ -13,9 +13,10 @@ import {
   Calendar,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useTheme } from "../context/ThemeContext"; // ⬅️ pakai context global
 
 export default function Settings() {
-  const [theme, setTheme] = useState("light");
+  const { theme, toggleTheme } = useTheme(); // ⬅️ ambil dari context
   const [username, setUsername] = useState("admin");
   const [email, setEmail] = useState("admin@example.com");
   const [notifications, setNotifications] = useState(true);
@@ -25,22 +26,7 @@ export default function Settings() {
   const [dateFormat, setDateFormat] = useState("dd/mm/yyyy");
   const [isLoggedIn, setIsLoggedIn] = useState(true);
 
-  // ✅ Default tema putih
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") || "light";
-    setTheme(savedTheme);
-    document.documentElement.classList.toggle("dark", savedTheme === "dark");
-  }, []);
-
-  // 🌙 Ganti tema
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-    localStorage.setItem("theme", newTheme);
-  };
-
-  // 💾 Simpan perubahan
+  // 💾 Simpan Perubahan
   const handleSave = () => {
     alert("✅ Semua perubahan berhasil disimpan!");
   };
@@ -57,16 +43,17 @@ export default function Settings() {
   if (!isLoggedIn) return null;
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] text-gray-800 p-8 transition-all duration-500">
+    <div className="min-h-screen bg-[#f9fafb] dark:bg-gray-900 text-gray-800 dark:text-gray-100 p-8 transition-all duration-500">
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-10"
       >
-        <h1 className="text-4xl font-bold flex items-center gap-3 text-gray-800">
+        <h1 className="text-4xl font-bold flex items-center gap-3">
           <Settings2 className="w-8 h-8 text-blue-600" /> Pengaturan
         </h1>
-        <p className="text-gray-500 mt-2">
+        <p className="text-gray-500 dark:text-gray-400 mt-2">
           Kelola preferensi akun, tampilan, dan pengaturan aplikasi kamu.
         </p>
       </motion.div>
@@ -74,32 +61,34 @@ export default function Settings() {
       <div className="grid lg:grid-cols-2 gap-8">
         {/* 🧑 Akun */}
         <motion.div
-          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200"
+          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-700">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <User className="w-5 h-5 text-blue-600" /> Akun Pengguna
           </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-500 mb-1">
+              <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
                 Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full p-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Email</label>
+              <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </div>
           </div>
@@ -113,12 +102,12 @@ export default function Settings() {
 
         {/* 🎨 Tampilan */}
         <motion.div
-          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200"
+          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-700">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Palette className="w-5 h-5 text-purple-600" /> Tampilan
           </h2>
           <div className="flex items-center justify-between mb-6">
@@ -144,13 +133,13 @@ export default function Settings() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
               Bahasa Aplikasi
             </label>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="w-full p-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <option value="id">Indonesia</option>
               <option value="en">English</option>
@@ -160,12 +149,12 @@ export default function Settings() {
 
         {/* 🔔 Notifikasi */}
         <motion.div
-          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200"
+          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-700">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Bell className="w-5 h-5 text-yellow-500" /> Notifikasi
           </h2>
           <div className="flex items-center justify-between mb-4">
@@ -190,23 +179,23 @@ export default function Settings() {
 
         {/* ⚙️ Preferensi Aplikasi */}
         <motion.div
-          className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200"
+          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-700">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <LayoutGrid className="w-5 h-5 text-green-500" /> Preferensi Aplikasi
           </h2>
 
           <div className="mb-4">
-            <label className="block text-sm text-gray-500 mb-1">
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
               Tata Letak Dashboard
             </label>
             <select
               value={dashboardLayout}
               onChange={(e) => setDashboardLayout(e.target.value)}
-              className="w-full p-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <option value="compact">Kompak</option>
               <option value="spacious">Luas</option>
@@ -214,13 +203,13 @@ export default function Settings() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-500 mb-1">
+            <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">
               Format Tanggal
             </label>
             <select
               value={dateFormat}
               onChange={(e) => setDateFormat(e.target.value)}
-              className="w-full p-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <option value="dd/mm/yyyy">DD/MM/YYYY</option>
               <option value="mm/dd/yyyy">MM/DD/YYYY</option>
@@ -232,15 +221,15 @@ export default function Settings() {
 
       {/* ℹ️ Tentang Aplikasi */}
       <motion.div
-        className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mt-8"
+        className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mt-8"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
       >
-        <h2 className="text-xl font-semibold flex items-center gap-2 mb-2 text-gray-700">
+        <h2 className="text-xl font-semibold flex items-center gap-2 mb-2">
           <Info className="w-5 h-5 text-indigo-600" /> Tentang Aplikasi
         </h2>
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
           <strong>Sistem Manajemen Restoran v1.0</strong> — dibuat dengan ❤️
           menggunakan React + Tailwind CSS + Framer Motion.
         </p>
