@@ -3,8 +3,11 @@ import Select from "react-select";
 import CategoryModal from "../components/CategoryModal";
 import ConfirmModal from "../components/ConfirmModal";
 import MenuList from "../components/MenuList";
+import { useTheme } from "../context/ThemeContext"; // ✅ Gunakan tema
 
 export default function Menu() {
+  const { theme } = useTheme(); // ✅ Ambil tema aktif (light/dark)
+
   const [categories, setCategories] = useState([
     { value: "Makanan", label: "Makanan" },
     { value: "Minuman", label: "Minuman" },
@@ -28,10 +31,8 @@ export default function Menu() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState(null);
 
-  // 🔹 jumlah item per halaman
   const itemsPerPage = 5;
 
-  // 🧩 Load data dari localStorage (sekali di awal)
   useEffect(() => {
     try {
       const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
@@ -49,22 +50,18 @@ export default function Menu() {
     }
   }, []);
 
-  // 💾 Simpan otomatis setiap kali menus berubah
   useEffect(() => {
     if (menus.length >= 0) {
       localStorage.setItem("menus", JSON.stringify(menus));
     }
   }, [menus]);
 
-  // 💾 Simpan otomatis setiap kali categories berubah
   useEffect(() => {
     if (categories.length >= 0) {
       localStorage.setItem("categories", JSON.stringify(categories));
     }
   }, [categories]);
 
-
-  // ✅ Filter menu berdasarkan search
   const filteredMenus = useMemo(() => {
     return menus.filter(
       (menu) =>
@@ -73,14 +70,12 @@ export default function Menu() {
     );
   }, [menus, searchTerm]);
 
-  // ✅ Pagination logic
   const totalPages = Math.ceil(filteredMenus.length / itemsPerPage);
   const paginatedMenus = filteredMenus.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  // ✅ Tambah kategori baru
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (
@@ -93,13 +88,10 @@ export default function Menu() {
       setForm({ ...form, category: newCat });
       setNewCategory("");
       setShowCategoryModal(false);
-
-      // 💾 Simpan ke localStorage juga
       localStorage.setItem("categories", JSON.stringify(updatedCategories));
     }
   };
 
-  // ✅ Upload gambar
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -110,7 +102,6 @@ export default function Menu() {
     reader.readAsDataURL(file);
   };
 
-  // ✅ Tambah/Edit menu
   const handleAddMenu = (e) => {
     e.preventDefault();
     let tempErrors = {};
@@ -141,14 +132,11 @@ export default function Menu() {
     if (hasError) return;
 
     if (form.id) {
-      // Edit mode
       setMenus(menus.map((m) => (m.id === form.id ? form : m)));
     } else {
-      // Tambah baru
       setMenus([...menus, { ...form, id: Date.now() }]);
     }
 
-    // Reset form
     setForm({
       id: null,
       name: "",
@@ -160,19 +148,16 @@ export default function Menu() {
     setErrors({});
   };
 
-  // ✅ Edit menu
   const handleEditMenu = (menu) => {
     setForm(menu);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ✅ Buka modal konfirmasi hapus
   const handleDeleteMenu = (id) => {
     setMenuToDelete(id);
     setShowConfirm(true);
   };
 
-  // ✅ Konfirmasi hapus
   const confirmDelete = () => {
     const updated = menus.filter((m) => m.id !== menuToDelete);
     setMenus(updated);
@@ -182,11 +167,11 @@ export default function Menu() {
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-6">📋 Manajemen Menu</h2>
+    <div className="p-4 transition-all duration-300">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">📋 Manajemen Menu</h2>
 
       {/* Form Tambah/Edit Menu */}
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 dark:text-white shadow rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4">
           {form.id ? "Edit Menu" : "Tambah Menu"}
         </h3>
@@ -201,7 +186,7 @@ export default function Menu() {
               placeholder="Nama Menu"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className={`border rounded px-3 py-2 ${
+              className={`border rounded px-3 py-2 dark:bg-gray-700 dark:text-white ${
                 errors.name ? "border-red-500" : ""
               }`}
             />
@@ -216,7 +201,7 @@ export default function Menu() {
               placeholder="Harga"
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
-              className={`border rounded px-3 py-2 ${
+              className={`border rounded px-3 py-2 dark:bg-gray-700 dark:text-white ${
                 errors.price ? "border-red-500" : ""
               }`}
             />
@@ -232,7 +217,7 @@ export default function Menu() {
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
               }
-              className={`border rounded px-3 py-2 ${
+              className={`border rounded px-3 py-2 dark:bg-gray-700 dark:text-white ${
                 errors.description ? "border-red-500" : ""
               }`}
             />
@@ -266,6 +251,24 @@ export default function Menu() {
                   setForm({ ...form, category: selected })
                 }
                 placeholder="Pilih kategori"
+                className="text-black dark:text-white"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    backgroundColor: theme === "dark" ? "#374151" : "white",
+                    borderColor: theme === "dark" ? "#4b5563" : "#ccc",
+                    color: theme === "dark" ? "white" : "black",
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    backgroundColor: theme === "dark" ? "#1f2937" : "white",
+                    color: theme === "dark" ? "white" : "black",
+                  }),
+                  singleValue: (base) => ({
+                    ...base,
+                    color: theme === "dark" ? "white" : "black",
+                  }),
+                }}
               />
               {errors.category && (
                 <p className="text-red-500 text-sm mt-1">{errors.category}</p>
@@ -290,7 +293,7 @@ export default function Menu() {
       </div>
 
       {/* Tabel Menu List */}
-      <div className="bg-white shadow rounded-lg p-6 overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 dark:text-white shadow rounded-lg p-6 overflow-x-auto">
         <MenuList
           menus={paginatedMenus}
           onEdit={handleEditMenu}
@@ -306,7 +309,7 @@ export default function Menu() {
               className={`px-3 py-1 rounded border ${
                 currentPage === 1
                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-white hover:bg-gray-100"
+                  : "bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
               }`}
             >
               Prev
@@ -319,7 +322,7 @@ export default function Menu() {
                 className={`px-3 py-1 rounded border ${
                   currentPage === i + 1
                     ? "bg-blue-600 text-white"
-                    : "bg-white hover:bg-gray-100"
+                    : "bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
               >
                 {i + 1}
@@ -332,7 +335,7 @@ export default function Menu() {
               className={`px-3 py-1 rounded border ${
                 currentPage === totalPages
                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  : "bg-white hover:bg-gray-100"
+                  : "bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
               }`}
             >
               Next

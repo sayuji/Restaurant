@@ -34,21 +34,21 @@ export default function HistoryOrders() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
-      <h1 className="text-3xl font-bold text-green-700 mb-6">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
+      <h1 className="text-3xl font-bold text-green-400 mb-6">
         📜 Riwayat Pesanan Selesai
       </h1>
 
       {/* Filter/Search */}
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <input
           type="text"
           placeholder="🔍 Cari meja, tanggal, atau menu..."
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 w-80 focus:ring-2 focus:ring-green-400 outline-none"
+          className="border border-gray-700 bg-gray-800 text-gray-100 rounded-lg px-3 py-2 w-80 focus:ring-2 focus:ring-green-400 outline-none placeholder-gray-500"
         />
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-400 text-sm">
           Total Pesanan: <span className="font-semibold">{doneOrders.length}</span>
         </p>
       </div>
@@ -58,9 +58,9 @@ export default function HistoryOrders() {
           Belum ada pesanan selesai.
         </p>
       ) : (
-        <div className="overflow-x-auto bg-white rounded-xl shadow border border-gray-200">
+        <div className="overflow-x-auto bg-gray-800 rounded-xl shadow border border-gray-700">
           <table className="min-w-full text-sm">
-            <thead className="bg-green-600 text-white">
+            <thead className="bg-green-700 text-gray-100">
               <tr>
                 <th className="p-3 text-left">Meja</th>
                 <th className="p-3 text-left">Tanggal</th>
@@ -74,27 +74,27 @@ export default function HistoryOrders() {
               {filteredOrders.map((order) => (
                 <tr
                   key={order.id}
-                  className="border-b border-gray-200 hover:bg-green-50 transition"
+                  className="border-b border-gray-700 hover:bg-green-900 transition"
                 >
                   <td className="p-3 font-medium">{order.namaMeja}</td>
                   <td className="p-3">{order.tanggal}</td>
                   <td className="p-3">{order.waktu}</td>
-                  <td className="p-3 text-green-700 font-semibold">
+                  <td className="p-3 text-green-400 font-semibold">
                     Rp {Number(order.totalHarga).toLocaleString()}
                   </td>
-                  <td className="p-3 text-green-600 font-semibold">
+                  <td className="p-3 text-green-300 font-semibold">
                     {order.status}
                   </td>
                   <td className="p-3 text-center space-x-2">
                     <button
                       onClick={() => setSelectedOrder(order)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm transition"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm transition"
                     >
                       Detail
                     </button>
                     <button
                       onClick={() => handleDelete(order.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg text-sm transition"
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm transition"
                     >
                       Hapus
                     </button>
@@ -108,29 +108,35 @@ export default function HistoryOrders() {
 
       {/* Modal Detail Pesanan */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md relative">
-            <h2 className="text-2xl font-bold text-green-700 mb-4 text-center">
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50">
+          <div className="bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-md relative text-gray-100">
+            <h2 className="text-2xl font-bold text-green-400 mb-4 text-center">
               Detail Pesanan - {selectedOrder.namaMeja}
             </h2>
 
-            <div className="space-y-2 text-gray-700">
-              <p><strong>Tanggal:</strong> {selectedOrder.tanggal}</p>
-              <p><strong>Waktu:</strong> {selectedOrder.waktu}</p>
-              <p><strong>Metode Pembayaran:</strong> {selectedOrder.paymentMethod}</p>
+            <div className="space-y-2">
+              <p>
+                <strong>Tanggal:</strong> {selectedOrder.tanggal}
+              </p>
+              <p>
+                <strong>Waktu:</strong> {selectedOrder.waktu}
+              </p>
+              <p>
+                <strong>Metode Pembayaran:</strong> {selectedOrder.paymentMethod}
+              </p>
 
-              <div className="mt-4 border-t pt-2">
-                <h3 className="font-semibold mb-2 text-green-700">🍽️ Daftar Menu</h3>
+              <div className="mt-4 border-t border-gray-700 pt-2">
+                <h3 className="font-semibold mb-2 text-green-400">🍽️ Daftar Menu</h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {selectedOrder.items.map((item, index) => (
                     <div
                       key={index}
-                      className="flex justify-between text-sm border-b pb-1"
+                      className="flex justify-between text-sm border-b border-gray-700 pb-1"
                     >
                       <span>
                         {item.nama} × {item.qty}
                         {item.catatan && (
-                          <span className="text-gray-500 italic"> ({item.catatan})</span>
+                          <span className="text-gray-400 italic"> ({item.catatan})</span>
                         )}
                       </span>
                       <span>Rp {(Number(item.harga) * item.qty).toLocaleString()}</span>
@@ -139,9 +145,9 @@ export default function HistoryOrders() {
                 </div>
               </div>
 
-              <div className="mt-4 border-t pt-2 flex justify-between text-lg font-semibold">
+              <div className="mt-4 border-t border-gray-700 pt-2 flex justify-between text-lg font-semibold">
                 <span>Total:</span>
-                <span className="text-green-700">
+                <span className="text-green-400">
                   Rp {Number(selectedOrder.totalHarga).toLocaleString()}
                 </span>
               </div>
@@ -150,7 +156,7 @@ export default function HistoryOrders() {
             <div className="mt-6 text-center">
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition"
+                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition"
               >
                 Tutup
               </button>
