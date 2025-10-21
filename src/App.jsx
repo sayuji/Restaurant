@@ -11,9 +11,9 @@ import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
 import HistoryOrders from "./pages/HistoryOrders";
+import TitleManager from "./components/TitleManager";
 
 export default function App() {
-  // 🌓 Aktifkan dark mode berdasarkan localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme === "dark") {
@@ -25,8 +25,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <TitleManager />
+
       <Routes>
-        {/* Halaman login (tidak dibungkus layout) */}
         <Route path="/login" element={<Login />} />
 
         <Route
