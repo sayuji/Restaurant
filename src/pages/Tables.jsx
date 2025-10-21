@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Tables() {
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
 
@@ -108,37 +110,42 @@ export default function Tables() {
   const getStatusBadge = (status) => {
     const baseClasses = "px-3 py-1 rounded-full text-sm font-medium";
     if (status === "kosong") {
-      return `${baseClasses} bg-green-100 text-green-800`;
+      return `${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`;
     } else {
-      return `${baseClasses} bg-red-100 text-red-800`;
+      return `${baseClasses} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200`;
     }
   };
 
   const handleCompleteOrder = () => {
-  const orderData = JSON.parse(localStorage.getItem("orderData"));
-  if (!orderData?.tableId) return;
+    const orderData = JSON.parse(localStorage.getItem("orderData"));
+    if (!orderData?.tableId) return;
 
-  // 🔹 Ubah meja jadi "kosong" lagi
-  const tables = JSON.parse(localStorage.getItem("tables")) || [];
-  const updatedTables = tables.map((t) =>
-    t.id === orderData.tableId ? { ...t, status: "kosong" } : t
-  );
-  localStorage.setItem("tables", JSON.stringify(updatedTables));
+    // 🔹 Ubah meja jadi "kosong" lagi
+    const tables = JSON.parse(localStorage.getItem("tables")) || [];
+    const updatedTables = tables.map((t) =>
+      t.id === orderData.tableId ? { ...t, status: "kosong" } : t
+    );
+    localStorage.setItem("tables", JSON.stringify(updatedTables));
 
-  // 🔹 Hapus order data setelah selesai
-  localStorage.removeItem("orderData");
+    // 🔹 Hapus order data setelah selesai
+    localStorage.removeItem("orderData");
 
-  alert("Pesanan selesai! Meja sudah dikosongkan.");
-  navigate("/tables");
-};
-
+    alert("Pesanan selesai! Meja sudah dikosongkan.");
+    navigate("/tables");
+  };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className={`p-6 min-h-screen transition-colors duration-300 ${
+      theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
       {/* Header Section */}
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Manajemen Meja</h2>
-        <p className="text-gray-600">Kelola meja restoran dan QR code untuk pemesanan</p>
+        <h2 className={`text-3xl font-bold mb-2 ${
+          theme === 'dark' ? 'text-white' : 'text-gray-800'
+        }`}>Manajemen Meja</h2>
+        <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+          Kelola meja restoran dan QR code untuk pemesanan
+        </p>
       </div>
 
       {/* Filter Pills and Action Button */}
@@ -150,13 +157,19 @@ export default function Tables() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
               statusFilter === "all"
                 ? "bg-blue-600 text-white shadow-lg"
+                : theme === 'dark'
+                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
                 : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
             }`}
           >
             <div className="w-2 h-2 rounded-full bg-current opacity-70"></div>
             Semua Meja
             <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "all" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-600"
+              statusFilter === "all" 
+                ? "bg-blue-500 text-white" 
+                : theme === 'dark'
+                ? "bg-gray-700 text-gray-300"
+                : "bg-gray-200 text-gray-600"
             }`}>
               {getStatusCount("all")}
             </span>
@@ -167,13 +180,19 @@ export default function Tables() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
               statusFilter === "kosong"
                 ? "bg-green-600 text-white shadow-lg"
+                : theme === 'dark'
+                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
                 : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
             }`}
           >
             <div className="w-2 h-2 rounded-full bg-green-500"></div>
             Tersedia
             <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "kosong" ? "bg-green-500 text-white" : "bg-gray-200 text-gray-600"
+              statusFilter === "kosong" 
+                ? "bg-green-500 text-white" 
+                : theme === 'dark'
+                ? "bg-gray-700 text-gray-300"
+                : "bg-gray-200 text-gray-600"
             }`}>
               {getStatusCount("kosong")}
             </span>
@@ -184,13 +203,19 @@ export default function Tables() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
               statusFilter === "terisi"
                 ? "bg-red-600 text-white shadow-lg"
+                : theme === 'dark'
+                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
                 : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
             }`}
           >
             <div className="w-2 h-2 rounded-full bg-red-500"></div>
             Terisi
             <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "terisi" ? "bg-red-500 text-white" : "bg-gray-200 text-gray-600"
+              statusFilter === "terisi" 
+                ? "bg-red-500 text-white" 
+                : theme === 'dark'
+                ? "bg-gray-700 text-gray-300"
+                : "bg-gray-200 text-gray-600"
             }`}>
               {getStatusCount("terisi")}
             </span>
@@ -212,7 +237,9 @@ export default function Tables() {
       {/* Tables Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredTables.map((table) => (
-          <div key={table.id} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+          <div key={table.id} className={`rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
             {/* Card Header */}
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-4">
               <div className="flex justify-between items-center">
@@ -226,9 +253,19 @@ export default function Tables() {
             {/* QR Code Section */}
             <div className="p-6 text-center">
               <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-3">Scan untuk memesan:</p>
+                <p className={`text-sm mb-3 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                }`}>Scan untuk memesan:</p>
                 <div className="flex justify-center">
-                  <div className={`p-3 bg-white rounded-lg border-2 ${table.status === "kosong" ? "border-green-200" : "border-red-200"}`}>
+                  <div className={`p-3 rounded-lg border-2 ${
+                    table.status === "kosong" 
+                      ? theme === 'dark' 
+                        ? 'border-green-600 bg-gray-700' 
+                        : 'border-green-200 bg-white'
+                      : theme === 'dark'
+                        ? 'border-red-600 bg-gray-700'
+                        : 'border-red-200 bg-white'
+                  }`}>
                     <QRCodeCanvas
                       value={`${getBaseUrl()}/order?table=${encryptTableParam(table.id)}`}
                       size={120}
@@ -240,8 +277,12 @@ export default function Tables() {
               
               {/* Status Indicator */}
               <div className="mb-4">
-                <div className={`w-3 h-3 rounded-full mx-auto ${table.status === "kosong" ? "bg-green-500" : "bg-red-500"}`}></div>
-                <p className="text-xs text-gray-500 mt-1">
+                <div className={`w-3 h-3 rounded-full mx-auto ${
+                  table.status === "kosong" ? "bg-green-500" : "bg-red-500"
+                }`}></div>
+                <p className={`text-xs mt-1 ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+                }`}>
                   {table.status === "kosong" ? "Siap menerima pesanan" : "Sedang digunakan"}
                 </p>
               </div>
@@ -277,43 +318,61 @@ export default function Tables() {
       {/* Empty State */}
       {tables.length === 0 && (
         <div className="text-center py-12">
-          <div className="w-24 h-24 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
+          <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${
+            theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+          }`}>
             <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada meja</h3>
-          <p className="text-gray-500">Tambahkan meja pertama untuk memulai</p>
+          <h3 className={`text-lg font-medium mb-2 ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>Belum ada meja</h3>
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+            Tambahkan meja pertama untuk memulai
+          </p>
         </div>
       )}
 
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all">
+          <div className={`rounded-xl shadow-2xl w-full max-w-md transform transition-all ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
             {modalData.type === "delete" ? (
               <div className="p-6">
                 {/* Delete Modal Header */}
                 <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mr-4">
+                    <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Hapus Meja</h3>
-                    <p className="text-sm text-gray-500">Tindakan ini tidak dapat dibatalkan</p>
+                    <h3 className={`text-lg font-semibold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>Hapus Meja</h3>
+                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                      Tindakan ini tidak dapat dibatalkan
+                    </p>
                   </div>
                 </div>
                 
-                <p className="text-gray-700 mb-6">
+                <p className={`mb-6 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   Yakin ingin menghapus <span className="font-semibold">"{modalData.name}"</span>?
                 </p>
                 
                 <div className="flex gap-3">
                   <button
                     onClick={closeModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors duration-200 ${
+                      theme === 'dark'
+                        ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
                   >
                     Batal
                   </button>
@@ -329,16 +388,18 @@ export default function Tables() {
               <div className="p-6">
                 {/* Add/Edit Modal Header */}
                 <div className="flex items-center mb-6">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mr-4">
+                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className={`text-lg font-semibold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
                       {modalData.id ? "Edit Meja" : "Tambah Meja Baru"}
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
                       {modalData.id ? "Perbarui informasi meja" : "Buat meja baru untuk restoran"}
                     </p>
                   </div>
@@ -346,7 +407,9 @@ export default function Tables() {
                 
                 <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
                       Nama Meja
                     </label>
                     <input
@@ -354,18 +417,28 @@ export default function Tables() {
                       placeholder="Contoh: Meja 1, VIP Table, dll"
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                          : 'border-gray-300'
+                      }`}
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
                       Status Meja
                     </label>
                     <select
                       value={form.status}
                       onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'border-gray-300'
+                      }`}
                     >
                       <option value="kosong">Kosong (Tersedia)</option>
                       <option value="terisi">Terisi (Sedang Digunakan)</option>
@@ -373,7 +446,9 @@ export default function Tables() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
                       Kapasitas Meja
                     </label>
                     <input
@@ -383,7 +458,11 @@ export default function Tables() {
                       placeholder="Jumlah kursi"
                       value={form.capacity}
                       onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                          : 'border-gray-300'
+                      }`}
                     />
                   </div>
                   
@@ -391,7 +470,11 @@ export default function Tables() {
                     <button
                       type="button"
                       onClick={closeModal}
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                      className={`flex-1 px-4 py-3 border rounded-lg transition-colors duration-200 ${
+                        theme === 'dark'
+                          ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
                     >
                       Batal
                     </button>

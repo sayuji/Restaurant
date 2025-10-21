@@ -2,8 +2,10 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { FiSearch, FiMinus, FiPlus, FiShoppingCart, FiX } from "react-icons/fi";
 import { decryptTableParam, getQueryParam, isValidEncryptedParam } from "../utils/encryption";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Orders() {
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [categories, setCategories] = useState([{ value: "all", label: "Semua Menu" }]);
@@ -103,45 +105,44 @@ export default function Orders() {
   );
 
   const handleCheckout = () => {
-  if (orderItems.length === 0) return;
-  if (!selectedTable) {
-    alert("Silakan pilih meja terlebih dahulu!");
-    return;
-  }
+    if (orderItems.length === 0) return;
+    if (!selectedTable) {
+      alert("Silakan pilih meja terlebih dahulu!");
+      return;
+    }
 
-  const orderData = {
-    items: orderItems.map((item) => ({
-      nama: item.name,
-      qty: item.quantity,
-      harga: item.price,
-      catatan: item.notes,
-    })),
-    totalHarga: totalPrice,
-    namaMeja: selectedTable.name,
-    tableId: selectedTable.id,
+    const orderData = {
+      items: orderItems.map((item) => ({
+        nama: item.name,
+        qty: item.quantity,
+        harga: item.price,
+        catatan: item.notes,
+      })),
+      totalHarga: totalPrice,
+      namaMeja: selectedTable.name,
+      tableId: selectedTable.id,
+    };
+
+    // 🔹 Update status meja menjadi "terisi"
+    const tables = JSON.parse(localStorage.getItem("tables")) || [];
+    const updatedTables = tables.map((t) =>
+      t.id === selectedTable.id ? { ...t, status: "terisi" } : t
+    );
+    localStorage.setItem("tables", JSON.stringify(updatedTables));
+
+    // 🔹 Simpan data order
+    localStorage.setItem("orderData", JSON.stringify(orderData));
+
+    navigate("/checkout", { state: orderData });
   };
-
-  // 🔹 Update status meja menjadi "terisi"
-  const tables = JSON.parse(localStorage.getItem("tables")) || [];
-  const updatedTables = tables.map((t) =>
-    t.id === selectedTable.id ? { ...t, status: "terisi" } : t
-  );
-  localStorage.setItem("tables", JSON.stringify(updatedTables));
-
-  // 🔹 Simpan data order
-  localStorage.setItem("orderData", JSON.stringify(orderData));
-
-  navigate("/checkout", { state: orderData });
-};
-
 
   // 🔹 Table Selector Component
   const TableSelector = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Pilih Meja</h2>
-          <p className="text-gray-600 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden transition-colors duration-300">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Pilih Meja</h2>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
         </div>
         
         <div className="p-4 max-h-96 overflow-y-auto">
@@ -155,18 +156,18 @@ export default function Orders() {
                 }}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                   table.status === "kosong"
-                    ? "border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300"
-                    : "border-red-200 bg-red-50 opacity-60 cursor-not-allowed"
+                    ? "border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500"
+                    : "border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 opacity-60 cursor-not-allowed"
                 }`}
                 disabled={table.status !== "kosong"}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-800">{table.name}</h3>
+                  <h3 className="font-semibold text-gray-800 dark:text-white">{table.name}</h3>
                   <div className={`w-3 h-3 rounded-full ${
                     table.status === "kosong" ? "bg-green-500" : "bg-red-500"
                   }`}></div>
                 </div>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   {table.status === "kosong" ? "Tersedia" : "Terisi"}
                 </p>
               </button>
@@ -175,13 +176,13 @@ export default function Orders() {
         </div>
         
         {availableTables.filter(t => t.status === "kosong").length === 0 && (
-          <div className="p-6 text-center border-t border-gray-200">
-            <div className="text-gray-500 mb-2">
+          <div className="p-6 text-center border-t border-gray-200 dark:border-gray-700">
+            <div className="text-gray-500 dark:text-gray-400 mb-2">
               <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-sm text-gray-600">Tidak ada meja yang tersedia saat ini</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Tidak ada meja yang tersedia saat ini</p>
           </div>
         )}
       </div>
@@ -189,13 +190,17 @@ export default function Orders() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+    <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${
+      theme === 'dark' 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       {/* Table Selector Modal */}
       {showTableSelector && <TableSelector />}
       
       {/* Enhanced Header */}
       <header className="mb-8 text-center">
-        <div className="bg-white rounded-2xl shadow-lg p-6 mx-auto max-w-md">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mx-auto max-w-md transition-colors duration-300">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -207,13 +212,13 @@ export default function Orders() {
           
           {/* Selected Table Display */}
           {selectedTable ? (
-            <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-green-100 rounded-xl border border-green-200">
+            <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-xl border border-green-200 dark:border-green-600 transition-colors duration-300">
               <div className="flex items-center justify-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <p className="text-green-800 font-semibold">{selectedTable.name}</p>
+                <p className="text-green-800 dark:text-green-200 font-semibold">{selectedTable.name}</p>
                 <button
                   onClick={() => setShowTableSelector(true)}
-                  className="ml-2 text-green-600 hover:text-green-800 transition-colors"
+                  className="ml-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
                   title="Ganti meja"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,8 +228,8 @@ export default function Orders() {
               </div>
             </div>
           ) : (
-            <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
-              <p className="text-yellow-800 font-medium">Pilih meja untuk melanjutkan</p>
+            <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-xl border border-yellow-200 dark:border-yellow-600 transition-colors duration-300">
+              <p className="text-yellow-800 dark:text-yellow-200 font-medium">Pilih meja untuk melanjutkan</p>
             </div>
           )}
         </div>
@@ -233,17 +238,18 @@ export default function Orders() {
       {/* Enhanced Filter & Search */}
       <div className="flex flex-col gap-4 mb-8 max-w-4xl mx-auto">
         {/* Category Pills */}
-        <div className="bg-white rounded-2xl shadow-md p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">Kategori Menu</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 transition-colors duration-300">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Kategori Menu</h3>
           <div className="flex flex-wrap gap-2">
             {categories.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => setSelectedCategory(cat.value)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 ${selectedCategory === cat.value
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+                  selectedCategory === cat.value
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md'
-                  }`}
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 hover:shadow-md'
+                }`}
               >
                 {cat.label}
               </button>
@@ -254,16 +260,14 @@ export default function Orders() {
         {/* Enhanced Search Input */}
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <FiSearch className="h-5 w-5 text-gray-400" />
           </div>
           <input
             type="text"
             placeholder="Cari menu favorit Anda..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border-0 rounded-2xl shadow-md focus:ring-2 focus:ring-blue-500 focus:shadow-lg transition-all duration-300"
+            className="w-full pl-10 pr-4 py-3 border-0 rounded-2xl shadow-md focus:ring-2 focus:ring-blue-500 focus:shadow-lg transition-all duration-300 bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
       </div>
@@ -274,7 +278,7 @@ export default function Orders() {
           {filteredMenus.map((menu) => (
             <div
               key={menu.id}
-              className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden"
             >
               <div className="relative">
                 <img
@@ -282,15 +286,15 @@ export default function Orders() {
                   alt={menu.name}
                   className="w-full h-48 object-cover"
                 />
-                <div className="absolute top-3 right-3 bg-white bg-opacity-90 backdrop-blur-sm rounded-full px-2 py-1">
-                  <span className="text-xs font-medium text-gray-700">{menu.category.label}</span>
+                <div className="absolute top-3 right-3 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full px-2 py-1">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{menu.category.label}</span>
                 </div>
               </div>
               <div className="p-5 flex flex-col justify-between flex-grow">
                 <div className="mb-4">
-                  <h3 className="font-bold text-lg text-gray-800 mb-2 line-clamp-2">{menu.name}</h3>
+                  <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2 line-clamp-2">{menu.name}</h3>
                   <div className="flex items-center justify-between">
-                    <p className="text-2xl font-bold text-blue-600">
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                       Rp {parseInt(menu.price).toLocaleString()}
                     </p>
                   </div>
@@ -311,19 +315,19 @@ export default function Orders() {
       </div>
 
       {/* Enhanced Order Summary */}
-      <div className="bg-white rounded-t-3xl shadow-2xl p-6 fixed bottom-0 left-0 right-0 md:relative md:max-w-lg md:mx-auto md:rounded-3xl border-t-4 border-blue-600 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-t-3xl shadow-2xl p-6 fixed bottom-0 left-0 right-0 md:relative md:max-w-lg md:mx-auto md:rounded-3xl border-t-4 border-blue-600 z-50 transition-colors duration-300">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">Ringkasan Pesanan</h2>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Ringkasan Pesanan</h2>
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 rounded-full px-3 py-1">
-              <span className="text-blue-600 font-semibold text-sm">{orderItems.length} item</span>
+            <div className="bg-blue-100 dark:bg-blue-900 rounded-full px-3 py-1">
+              <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">{orderItems.length} item</span>
             </div>
             <button
               onClick={() => setIsOrderSummaryCollapsed(!isOrderSummaryCollapsed)}
-              className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors duration-200"
+              className="w-8 h-8 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors duration-200"
             >
               <svg
-                className={`w-5 h-5 text-gray-600 transition-transform duration-300 ${isOrderSummaryCollapsed ? 'rotate-180' : ''}`}
+                className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform duration-300 ${isOrderSummaryCollapsed ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -338,50 +342,48 @@ export default function Orders() {
           <>
             {orderItems.length === 0 ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <FiShoppingCart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                 </div>
-                <p className="text-gray-500 font-medium">Belum ada menu yang dipilih</p>
-                <p className="text-gray-400 text-sm mt-1">Pilih menu favorit Anda di atas</p>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">Belum ada menu yang dipilih</p>
+                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Pilih menu favorit Anda di atas</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-48 md:max-h-64 overflow-y-auto mb-4">
                 {orderItems.map((item) => (
-                  <div key={item.id} className="bg-gray-50 rounded-xl p-4 flex justify-between items-center">
+                  <div key={item.id} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 flex justify-between items-center transition-colors duration-300">
                     <div className="flex-1">
-                      <p className="font-semibold text-gray-800">{item.name}</p>
-                      <p className="text-blue-600 font-medium">
+                      <p className="font-semibold text-gray-800 dark:text-white">{item.name}</p>
+                      <p className="text-blue-600 dark:text-blue-400 font-medium">
                         Rp {item.price.toLocaleString()} × {item.quantity}
                       </p>
                       {item.notes && (
-                        <p className="text-xs text-gray-500 mt-1 italic bg-yellow-50 px-2 py-1 rounded">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic bg-yellow-50 dark:bg-yellow-900 px-2 py-1 rounded">
                           📝 {item.notes}
                         </p>
                       )}
                     </div>
                     <div className="flex items-center gap-3 ml-4">
-                      <div className="flex items-center bg-white rounded-lg border">
+                      <div className="flex items-center bg-white dark:bg-gray-600 rounded-lg border border-gray-300 dark:border-gray-500">
                         <button
                           onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-l-lg"
+                          className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 rounded-l-lg transition-colors"
                         >
-                          −
+                          <FiMinus className="w-3 h-3" />
                         </button>
-                        <span className="w-10 text-center font-semibold">{item.quantity}</span>
+                        <span className="w-10 text-center font-semibold text-gray-800 dark:text-white">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-r-lg"
+                          className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 rounded-r-lg transition-colors"
                         >
-                          +
+                          <FiPlus className="w-3 h-3" />
                         </button>
                       </div>
                       <button
                         onClick={() => removeFromOrder(item.id)}
-                        className="w-8 h-8 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors duration-200 flex items-center justify-center"
+                        className="w-8 h-8 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors duration-200 flex items-center justify-center"
                       >
-                        ✕
+                        <FiX className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -391,18 +393,19 @@ export default function Orders() {
           </>
         )}
 
-        <div className="border-t pt-4">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-lg font-semibold text-gray-700">Total Pembayaran:</span>
-            <span className="text-2xl font-bold text-blue-600">Rp {totalPrice.toLocaleString()}</span>
+            <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Pembayaran:</span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">Rp {totalPrice.toLocaleString()}</span>
           </div>
           <button
             onClick={handleCheckout}
             disabled={orderItems.length === 0}
-            className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${orderItems.length === 0
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
+              orderItems.length === 0
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
-              }`}
+            }`}
           >
             {orderItems.length === 0 ? 'Pilih Menu Terlebih Dahulu' : '🛒 Lanjut ke Pembayaran'}
           </button>
@@ -412,7 +415,7 @@ export default function Orders() {
       {/* Enhanced Modal */}
       {showModal && selectedMenu && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden transition-colors duration-300">
             {/* Modal Header with Image */}
             <div className="relative h-48">
               <img
@@ -423,9 +426,9 @@ export default function Orders() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
               <button
                 onClick={() => setShowModal(false)}
-                className="absolute top-4 right-4 w-10 h-10 bg-white bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-600 hover:bg-opacity-100 transition-all duration-200"
+                className="absolute top-4 right-4 w-10 h-10 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-opacity-100 dark:hover:bg-opacity-100 transition-all duration-200"
               >
-                ✕
+                <FiX className="w-5 h-5" />
               </button>
               <div className="absolute bottom-4 left-4 right-4">
                 <h2 className="text-2xl font-bold text-white mb-1">{selectedMenu.name}</h2>
@@ -436,34 +439,34 @@ export default function Orders() {
             <div className="p-6">
               {/* Quantity Selector */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Jumlah Pesanan</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Jumlah Pesanan</label>
                 <div className="flex items-center justify-center">
                   <button
                     onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                    className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-l-xl text-xl transition-colors duration-200"
+                    className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-l-xl text-xl transition-colors duration-200"
                   >
-                    −
+                    <FiMinus className="w-4 h-4 mx-auto" />
                   </button>
-                  <div className="w-20 h-12 bg-blue-50 border-t border-b border-blue-200 flex items-center justify-center font-bold text-xl text-blue-600">
+                  <div className="w-20 h-12 bg-blue-50 dark:bg-blue-900 border-t border-b border-blue-200 dark:border-blue-700 flex items-center justify-center font-bold text-xl text-blue-600 dark:text-blue-400">
                     {quantity}
                   </div>
                   <button
                     onClick={() => setQuantity((prev) => prev + 1)}
-                    className="w-12 h-12 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-r-xl text-xl transition-colors duration-200"
+                    className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-r-xl text-xl transition-colors duration-200"
                   >
-                    +
+                    <FiPlus className="w-4 h-4 mx-auto" />
                   </button>
                 </div>
               </div>
 
               {/* Notes */}
               <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan Khusus (Opsional)</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Catatan Khusus (Opsional)</label>
                 <textarea
                   placeholder="Contoh: Tidak pedas, extra sambal, dll..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 resize-none"
+                  className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all duration-200 resize-none bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                   rows="3"
                 ></textarea>
               </div>
@@ -472,7 +475,7 @@ export default function Orders() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-colors duration-200"
+                  className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
                 >
                   Batal
                 </button>
@@ -496,31 +499,31 @@ export default function Orders() {
       {/* Table Selector Modal */}
       {showTableSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden transition-colors duration-300">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-800">Pilih Meja</h3>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white">Pilih Meja</h3>
                 {selectedTable && (
                   <button
                     onClick={() => setShowTableSelector(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   >
                     <FiX className="w-6 h-6" />
                   </button>
                 )}
               </div>
-              <p className="text-gray-600 mt-2">Pilih meja untuk melanjutkan pemesanan</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">Pilih meja untuk melanjutkan pemesanan</p>
             </div>
             
             <div className="p-6 max-h-96 overflow-y-auto">
               {availableTables.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8l-4 4m0 0l-4-4m4 4V3" />
                     </svg>
                   </div>
-                  <p className="text-gray-500">Tidak ada meja tersedia</p>
+                  <p className="text-gray-500 dark:text-gray-400">Tidak ada meja tersedia</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3">
@@ -533,22 +536,22 @@ export default function Orders() {
                       }}
                       className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                         table.status === 'kosong'
-                          ? 'border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300'
-                          : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
+                          ? 'border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500'
+                          : 'border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 cursor-not-allowed opacity-60'
                       }`}
                       disabled={table.status !== 'kosong'}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-semibold text-gray-800">{table.name}</h4>
-                          <p className="text-sm text-gray-600">Kapasitas: {table.capacity} orang</p>
+                          <h4 className="font-semibold text-gray-800 dark:text-white">{table.name}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Kapasitas: {table.capacity} orang</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${
                             table.status === 'kosong' ? 'bg-green-500' : 'bg-red-500'
                           }`}></div>
                           <span className={`text-sm font-medium ${
-                            table.status === 'kosong' ? 'text-green-700' : 'text-red-700'
+                            table.status === 'kosong' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
                           }`}>
                             {table.status === 'kosong' ? 'Tersedia' : 'Terisi'}
                           </span>
