@@ -1,5 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  Edit3, 
+  Trash2, 
+  QrCode, 
+  Users,
+  Download,
+  Table as TableIcon,
+  Clock,
+  CheckCircle,
+  X
+} from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
 import { useTheme } from "../context/ThemeContext";
@@ -8,56 +23,68 @@ export default function Tables() {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [tables, setTables] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalData, setModalData] = useState({});
+  const [form, setForm] = useState({ name: "", status: "kosong", capacity: 4 });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [selectedTables, setSelectedTables] = useState(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
-  // 🔹 Load tables from localStorage on component mount
+  // 🔹 Load tables from localStorage
   useEffect(() => {
     const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
     if (savedTables.length > 0) {
       setTables(savedTables);
     } else {
-      // Initialize with default tables if none exist
       const defaultTables = [
         { id: 1, name: "Meja 1", status: "kosong", capacity: 4 },
         { id: 2, name: "Meja 2", status: "terisi", capacity: 6 },
-        { id: 3, name: "Meja 3", status: "kosong", capacity: 2 },
+        { id: 3, name: "Meja VIP", status: "kosong", capacity: 8 },
+        { id: 4, name: "Meja 4", status: "terisi", capacity: 2 },
+        { id: 5, name: "Meja 5", status: "kosong", capacity: 4 },
+        { id: 6, name: "Meja 6", status: "kosong", capacity: 6 },
       ];
       setTables(defaultTables);
       localStorage.setItem("tables", JSON.stringify(defaultTables));
     }
   }, []);
 
-  // 🔹 Save tables to localStorage whenever tables state changes
+  // 🔹 Save tables to localStorage
   useEffect(() => {
     if (tables.length > 0) {
       localStorage.setItem("tables", JSON.stringify(tables));
     }
   }, [tables]);
 
-  const [showModal, setShowModal] = useState(false);
-  const [modalData, setModalData] = useState({});
-  const [form, setForm] = useState({ name: "", status: "kosong", capacity: 4 });
-  const [statusFilter, setStatusFilter] = useState("all"); // New filter state
-
   // Dynamic base URL function
   const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
       return window.location.protocol + '//' + window.location.host;
-    } else {
-      // Server-side fallback
-      return 'http://localhost:3001';
     }
+    return 'http://localhost:3001';
   };
 
-  // Filter tables based on status
+  // Filter tables
   const filteredTables = tables.filter(table => {
-    if (statusFilter === "all") return true;
-    return table.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || table.status === statusFilter;
+    const matchesSearch = table.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesStatus && matchesSearch;
   });
 
   // Get count for each status
   const getStatusCount = (status) => {
     if (status === "all") return tables.length;
     return tables.filter(table => table.status === status).length;
+  };
+
+  // Statistics
+  const stats = {
+    total: tables.length,
+    available: tables.filter(t => t.status === "kosong").length,
+    occupied: tables.filter(t => t.status === "terisi").length,
+    totalCapacity: tables.reduce((sum, table) => sum + table.capacity, 0)
   };
 
   const openModal = (type, table = {}) => {
@@ -76,26 +103,37 @@ export default function Tables() {
   };
 
   const handleAddTable = () => {
-    if (!form.name) return alert("Isi nama meja dulu!");
+    if (!form.name.trim()) {
+      alert("Isi nama meja dulu!");
+      return;
+    }
+    
     const newTable = {
       id: tables.length ? Math.max(...tables.map(t => t.id)) + 1 : 1,
       name: form.name,
       status: form.status,
       capacity: parseInt(form.capacity) || 4,
+      createdAt: new Date().toISOString()
     };
+    
     setTables([...tables, newTable]);
     closeModal();
   };
 
   const handleEditTable = () => {
-    if (!form.name) return alert("Nama meja tidak boleh kosong!");
+    if (!form.name.trim()) {
+      alert("Nama meja tidak boleh kosong!");
+      return;
+    }
+    
     setTables(
       tables.map((t) =>
         t.id === modalData.id ? { 
           ...t, 
           name: form.name, 
           status: form.status, 
-          capacity: parseInt(form.capacity) || 4 
+          capacity: parseInt(form.capacity) || 4,
+          updatedAt: new Date().toISOString()
         } : t
       )
     );
@@ -107,8 +145,39 @@ export default function Tables() {
     closeModal();
   };
 
+  const handleBulkDelete = () => {
+    if (selectedTables.size === 0) return;
+    
+    if (!window.confirm(`Yakin hapus ${selectedTables.size} meja?`)) return;
+    
+    setTables(tables.filter((t) => !selectedTables.has(t.id)));
+    setSelectedTables(new Set());
+    setShowBulkActions(false);
+  };
+
+  const toggleTableSelection = (id) => {
+    const newSelected = new Set(selectedTables);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedTables(newSelected);
+    setShowBulkActions(newSelected.size > 0);
+  };
+
+  const selectAllTables = () => {
+    if (selectedTables.size === filteredTables.length) {
+      setSelectedTables(new Set());
+      setShowBulkActions(false);
+    } else {
+      setSelectedTables(new Set(filteredTables.map(table => table.id)));
+      setShowBulkActions(true);
+    }
+  };
+
   const getStatusBadge = (status) => {
-    const baseClasses = "px-3 py-1 rounded-full text-sm font-medium";
+    const baseClasses = "px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1";
     if (status === "kosong") {
       return `${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`;
     } else {
@@ -116,361 +185,498 @@ export default function Tables() {
     }
   };
 
-  const handleCompleteOrder = () => {
-    const orderData = JSON.parse(localStorage.getItem("orderData"));
-    if (!orderData?.tableId) return;
-
-    // 🔹 Ubah meja jadi "kosong" lagi
-    const tables = JSON.parse(localStorage.getItem("tables")) || [];
-    const updatedTables = tables.map((t) =>
-      t.id === orderData.tableId ? { ...t, status: "kosong" } : t
-    );
-    localStorage.setItem("tables", JSON.stringify(updatedTables));
-
-    // 🔹 Hapus order data setelah selesai
-    localStorage.removeItem("orderData");
-
-    alert("Pesanan selesai! Meja sudah dikosongkan.");
-    navigate("/tables");
+  const exportQRCode = (table) => {
+    const canvas = document.getElementById(`qrcode-${table.id}`);
+    if (canvas) {
+      const pngUrl = canvas.toDataURL("image/png");
+      const downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      downloadLink.download = `QRCode-${table.name}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
   };
 
-  return (
-    <div className={`p-6 min-h-screen transition-colors duration-300 ${
-      theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
-    }`}>
-      {/* Header Section */}
-      <div className="mb-8">
-        <h2 className={`text-3xl font-bold mb-2 ${
-          theme === 'dark' ? 'text-white' : 'text-gray-800'
-        }`}>Manajemen Meja</h2>
-        <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
-          Kelola meja restoran dan QR code untuk pemesanan
-        </p>
-      </div>
-
-      {/* Filter Pills and Action Button */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        {/* Filter Pills */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setStatusFilter("all")}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              statusFilter === "all"
-                ? "bg-blue-600 text-white shadow-lg"
-                : theme === 'dark'
-                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
-                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-current opacity-70"></div>
-            Semua Meja
-            <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "all" 
-                ? "bg-blue-500 text-white" 
-                : theme === 'dark'
-                ? "bg-gray-700 text-gray-300"
-                : "bg-gray-200 text-gray-600"
-            }`}>
-              {getStatusCount("all")}
-            </span>
-          </button>
-          
-          <button
-            onClick={() => setStatusFilter("kosong")}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              statusFilter === "kosong"
-                ? "bg-green-600 text-white shadow-lg"
-                : theme === 'dark'
-                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
-                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            Tersedia
-            <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "kosong" 
-                ? "bg-green-500 text-white" 
-                : theme === 'dark'
-                ? "bg-gray-700 text-gray-300"
-                : "bg-gray-200 text-gray-600"
-            }`}>
-              {getStatusCount("kosong")}
-            </span>
-          </button>
-          
-          <button
-            onClick={() => setStatusFilter("terisi")}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-              statusFilter === "terisi"
-                ? "bg-red-600 text-white shadow-lg"
-                : theme === 'dark'
-                ? "bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
-                : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-            Terisi
-            <span className={`px-2 py-0.5 rounded-full text-xs ${
-              statusFilter === "terisi" 
-                ? "bg-red-500 text-white" 
-                : theme === 'dark'
-                ? "bg-gray-700 text-gray-300"
-                : "bg-gray-200 text-gray-600"
-            }`}>
-              {getStatusCount("terisi")}
-            </span>
-          </button>
+  const TableCard = ({ table, index }) => (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.1 }}
+      className={`rounded-2xl transition-all duration-300 hover:shadow-xl ${
+        theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+      } ${selectedTables.has(table.id) ? 'ring-2 ring-blue-500' : ''}`}
+    >
+      {/* Card Header */}
+      <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={selectedTables.has(table.id)}
+              onChange={() => toggleTableSelection(table.id)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <h3 className="text-xl font-semibold">{table.name}</h3>
+          </div>
+          <span className={getStatusBadge(table.status)}>
+            {table.status === "kosong" ? (
+              <><CheckCircle className="w-3 h-3" /> Tersedia</>
+            ) : (
+              <><Clock className="w-3 h-3" /> Terisi</>
+            )}
+          </span>
         </div>
-
-        {/* Action Button */}
-        <button
-          onClick={() => openModal("add")}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2 justify-center sm:justify-start"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Tambah Meja Baru
-        </button>
+        <div className="flex items-center gap-4 text-sm text-gray-300">
+          <div className="flex items-center gap-1">
+            <Users className="w-4 h-4" />
+            <span>{table.capacity} orang</span>
+          </div>
+          <div>ID: {table.id}</div>
+        </div>
       </div>
 
-      {/* Tables Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredTables.map((table) => (
-          <div key={table.id} className={`rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden ${
-            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+      {/* QR Code Section */}
+      <div className="p-6 text-center">
+        <div className="mb-4">
+          <p className={`text-sm mb-3 ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            {/* Card Header */}
-            <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">{table.name}</h3>
-                <span className={getStatusBadge(table.status)}>
-                  {table.status === "kosong" ? "Tersedia" : "Terisi"}
-                </span>
-              </div>
-            </div>
-
-            {/* QR Code Section */}
-            <div className="p-6 text-center">
-              <div className="mb-4">
-                <p className={`text-sm mb-3 ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                }`}>Scan untuk memesan:</p>
-                <div className="flex justify-center">
-                  <div className={`p-3 rounded-lg border-2 ${
-                    table.status === "kosong" 
-                      ? theme === 'dark' 
-                        ? 'border-green-600 bg-gray-700' 
-                        : 'border-green-200 bg-white'
-                      : theme === 'dark'
-                        ? 'border-red-600 bg-gray-700'
-                        : 'border-red-200 bg-white'
-                  }`}>
-                    <QRCodeCanvas
-                      value={`${getBaseUrl()}/order?table=${encryptTableParam(table.id)}`}
-                      size={120}
-                      className={table.status === "kosong" ? "opacity-100" : "opacity-50"}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Status Indicator */}
-              <div className="mb-4">
-                <div className={`w-3 h-3 rounded-full mx-auto ${
-                  table.status === "kosong" ? "bg-green-500" : "bg-red-500"
-                }`}></div>
-                <p className={`text-xs mt-1 ${
-                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
-                }`}>
-                  {table.status === "kosong" ? "Siap menerima pesanan" : "Sedang digunakan"}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="px-6 pb-6">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => openModal("edit", table)}
-                  className="flex-1 bg-yellow-500 text-white py-2 px-3 rounded-lg hover:bg-yellow-600 transition-colors duration-200 text-sm font-medium flex items-center justify-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </button>
-                <button
-                  onClick={() => openModal("delete", table)}
-                  className="flex-1 bg-red-500 text-white py-2 px-3 rounded-lg hover:bg-red-600 transition-colors duration-200 text-sm font-medium flex items-center justify-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Hapus
-                </button>
-              </div>
+            Scan untuk memesan
+          </p>
+          <div className="flex justify-center">
+            <div className={`p-4 rounded-2xl border-2 transition-all duration-300 ${
+              table.status === "kosong" 
+                ? theme === 'dark' 
+                  ? 'border-green-600 bg-gray-700 hover:border-green-500' 
+                  : 'border-green-200 bg-white hover:border-green-300'
+                : theme === 'dark'
+                  ? 'border-red-600 bg-gray-700 opacity-70'
+                  : 'border-red-200 bg-white opacity-70'
+            }`}>
+              <QRCodeCanvas
+                id={`qrcode-${table.id}`}
+                value={`${getBaseUrl()}/order?table=${encryptTableParam(table.id)}`}
+                size={140}
+                className="transition-opacity duration-300"
+              />
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {tables.length === 0 && (
-        <div className="text-center py-12">
-          <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${
-            theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+        </div>
+        
+        {/* Status Indicator */}
+        <div className="mb-4">
+          <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${
+            table.status === "kosong" ? "bg-green-500 animate-pulse" : "bg-red-500"
+          }`} />
+          <p className={`text-xs ${
+            theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
           }`}>
-            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-            </svg>
-          </div>
-          <h3 className={`text-lg font-medium mb-2 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>Belum ada meja</h3>
-          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-            Tambahkan meja pertama untuk memulai
+            {table.status === "kosong" ? "Siap menerima pesanan" : "Sedang digunakan"}
           </p>
         </div>
-      )}
+      </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
-          <div className={`rounded-xl shadow-2xl w-full max-w-md transform transition-all ${
-            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-          }`}>
-            {modalData.type === "delete" ? (
-              <div className="p-6">
-                {/* Delete Modal Header */}
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className={`text-lg font-semibold ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>Hapus Meja</h3>
-                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                      Tindakan ini tidak dapat dibatalkan
-                    </p>
-                  </div>
-                </div>
-                
-                <p className={`mb-6 ${
-                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Yakin ingin menghapus <span className="font-semibold">"{modalData.name}"</span>?
+      {/* Action Buttons */}
+      <div className="px-6 pb-6">
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => exportQRCode(table)}
+            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center gap-1"
+            title="Download QR Code"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => openModal("edit", table)}
+            className="p-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors duration-200 flex items-center justify-center gap-1"
+            title="Edit Meja"
+          >
+            <Edit3 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => openModal("delete", table)}
+            className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-1"
+            title="Hapus Meja"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  const TableListItem = ({ table, index }) => (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className={`p-6 rounded-2xl transition-all duration-300 ${
+        theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+      } ${selectedTables.has(table.id) ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}`}
+    >
+      <div className="flex items-center gap-4">
+        <input
+          type="checkbox"
+          checked={selectedTables.has(table.id)}
+          onChange={() => toggleTableSelection(table.id)}
+          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+        />
+        
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl flex items-center justify-center">
+              <TableIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-800 dark:text-white text-lg">
+                {table.name}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Kapasitas: {table.capacity} orang
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={getStatusBadge(table.status)}>
+              {table.status === "kosong" ? "Tersedia" : "Terisi"}
+            </span>
+          </div>
+
+          <div className="flex justify-center">
+            <div className={`p-2 rounded-lg border ${
+              table.status === "kosong" 
+                ? 'border-green-200 dark:border-green-800' 
+                : 'border-red-200 dark:border-red-800'
+            }`}>
+              <QRCodeCanvas
+                value={`${getBaseUrl()}/order?table=${encryptTableParam(table.id)}`}
+                size={60}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => exportQRCode(table)}
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              title="Download QR"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => openModal("edit", table)}
+              className="p-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+              title="Edit"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => openModal("delete", table)}
+              className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              title="Hapus"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <div className={`min-h-screen p-6 transition-colors duration-300 ${
+      theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              🏪 Manajemen Meja
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
+              Kelola meja restoran dan QR code untuk pemesanan online
+            </p>
+          </div>
+          
+          {/* Stats */}
+          <div className="flex gap-6 mt-4 lg:mt-0">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Meja</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.available}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Tersedia</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.occupied}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Terisi</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Filters and Controls */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className={`rounded-2xl p-6 mb-6 transition-colors duration-300 ${
+          theme === 'dark' ? 'bg-gray-800 shadow-lg' : 'bg-white shadow-lg'
+        }`}
+      >
+        <div className="flex flex-col lg:flex-row gap-4 items-center">
+          {/* Search */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Cari meja..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                theme === 'dark'
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                  : 'bg-white border-gray-300 text-gray-800'
+              }`}
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3">
+            {/* Status Filter Pills */}
+            <div className="flex gap-2">
+              {["all", "kosong", "terisi"].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                    statusFilter === status
+                      ? status === "all" 
+                        ? "bg-blue-600 text-white shadow-lg"
+                        : status === "kosong"
+                        ? "bg-green-600 text-white shadow-lg"
+                        : "bg-red-600 text-white shadow-lg"
+                      : theme === 'dark'
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${
+                    status === "all" ? "bg-current opacity-70" :
+                    status === "kosong" ? "bg-green-500" : "bg-red-500"
+                  }`} />
+                  {status === "all" ? "Semua" : status === "kosong" ? "Tersedia" : "Terisi"}
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    statusFilter === status
+                      ? "bg-white/20 text-white"
+                      : theme === 'dark'
+                      ? "bg-gray-600 text-gray-300"
+                      : "bg-gray-200 text-gray-600"
+                  }`}>
+                    {getStatusCount(status)}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* View Toggle */}
+            <div className={`flex rounded-xl border overflow-hidden ${
+              theme === 'dark' ? 'border-gray-600' : 'border-gray-300'
+            }`}>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-3 transition-colors ${
+                  viewMode === "grid"
+                    ? 'bg-blue-600 text-white'
+                    : theme === 'dark'
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <TableIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-3 transition-colors ${
+                  viewMode === "list"
+                    ? 'bg-blue-600 text-white'
+                    : theme === 'dark'
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Add Table Button */}
+            <button
+              onClick={() => openModal("add")}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Tambah Meja
+            </button>
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        <AnimatePresence>
+          {showBulkActions && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-yellow-800 dark:text-yellow-200 font-medium">
+                  {selectedTables.size} meja terpilih
                 </p>
-                
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
-                    onClick={closeModal}
-                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors duration-200 ${
-                      theme === 'dark'
-                        ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
+                    onClick={handleBulkDelete}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Hapus yang Dipilih
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedTables(new Set());
+                      setShowBulkActions(false);
+                    }}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors duration-200"
                   >
                     Batal
                   </button>
-                  <button
-                    onClick={handleDeleteTable}
-                    className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors duration-200"
-                  >
-                    Hapus
-                  </button>
                 </div>
               </div>
-            ) : (
-              <div className="p-6">
-                {/* Add/Edit Modal Header */}
-                <div className="flex items-center mb-6">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mr-4">
-                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className={`text-lg font-semibold ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {modalData.id ? "Edit Meja" : "Tambah Meja Baru"}
-                    </h3>
-                    <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                      {modalData.id ? "Perbarui informasi meja" : "Buat meja baru untuk restoran"}
-                    </p>
-                  </div>
-                </div>
-                
-                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      Nama Meja
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: Meja 1, VIP Table, dll"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                        theme === 'dark'
-                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                          : 'border-gray-300'
-                      }`}
-                    />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Tables Grid/List */}
+      {filteredTables.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={`rounded-2xl p-12 text-center transition-colors duration-300 ${
+            theme === 'dark' ? 'bg-gray-800 shadow-lg' : 'bg-white shadow-lg'
+          }`}
+        >
+          <TableIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+            Tidak ada meja
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            {tables.length === 0 
+              ? "Tambahkan meja pertama untuk memulai" 
+              : "Tidak ada meja yang sesuai dengan filter"
+            }
+          </p>
+          <button
+            onClick={() => openModal("add")}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 mx-auto"
+          >
+            <Plus className="w-5 h-5" />
+            Tambah Meja Pertama
+          </button>
+        </motion.div>
+      ) : (
+        <>
+          {/* Selection Header */}
+          {selectedTables.size > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-4">
+                <input
+                  type="checkbox"
+                  checked={selectedTables.size === filteredTables.length}
+                  onChange={selectAllTables}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-blue-800 dark:text-blue-200 font-medium">
+                  {selectedTables.size} meja terpilih
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Tables Display */}
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <AnimatePresence>
+                {filteredTables.map((table, index) => (
+                  <TableCard key={table.id} table={table} index={index} />
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {filteredTables.map((table, index) => (
+                  <TableListItem key={table.id} table={table} index={index} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`rounded-2xl w-full max-w-md transform transition-all ${
+                theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+              }`}
+            >
+              {modalData.type === "delete" ? (
+                <div className="p-6">
+                  {/* Delete Modal Header */}
+                  <div className="flex items-center mb-4">
+                    <div className="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mr-4">
+                      <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <h3 className={`text-lg font-semibold ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>Hapus Meja</h3>
+                      <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                        Tindakan ini tidak dapat dibatalkan
+                      </p>
+                    </div>
                   </div>
                   
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      Status Meja
-                    </label>
-                    <select
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                        theme === 'dark'
-                          ? 'bg-gray-700 border-gray-600 text-white'
-                          : 'border-gray-300'
-                      }`}
-                    >
-                      <option value="kosong">Kosong (Tersedia)</option>
-                      <option value="terisi">Terisi (Sedang Digunakan)</option>
-                    </select>
-                  </div>
+                  <p className={`mb-6 ${
+                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Yakin ingin menghapus <span className="font-semibold">"{modalData.name}"</span>?
+                    Semua data terkait meja ini akan dihapus.
+                  </p>
                   
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      Kapasitas Meja
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      placeholder="Jumlah kursi"
-                      value={form.capacity}
-                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                      className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                        theme === 'dark'
-                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
-                          : 'border-gray-300'
-                      }`}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex gap-3">
                     <button
-                      type="button"
                       onClick={closeModal}
-                      className={`flex-1 px-4 py-3 border rounded-lg transition-colors duration-200 ${
+                      className={`flex-1 px-4 py-3 border rounded-xl font-semibold transition-colors duration-200 ${
                         theme === 'dark'
                           ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
                           : 'border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -479,19 +685,128 @@ export default function Tables() {
                       Batal
                     </button>
                     <button
-                      type="button"
-                      onClick={modalData.id ? handleEditTable : handleAddTable}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200"
+                      onClick={handleDeleteTable}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-semibold transition-colors duration-200"
                     >
-                      {modalData.id ? "Simpan Perubahan" : "Tambah Meja"}
+                      Hapus
                     </button>
                   </div>
-                </form>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                </div>
+              ) : (
+                <div className="p-6">
+                  {/* Add/Edit Modal Header */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
+                        <TableIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className={`text-lg font-semibold ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {modalData.id ? "Edit Meja" : "Tambah Meja Baru"}
+                        </h3>
+                        <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                          {modalData.id ? "Perbarui informasi meja" : "Buat meja baru untuk restoran"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={closeModal}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
+                  
+                  <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Nama Meja *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Meja 1, VIP Table, dll"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className={`w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                          theme === 'dark'
+                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Status Meja
+                      </label>
+                      <select
+                        value={form.status}
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                        className={`w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                          theme === 'dark'
+                            ? 'bg-gray-700 border-gray-600 text-white'
+                            : 'border-gray-300'
+                        }`}
+                      >
+                        <option value="kosong">Kosong (Tersedia)</option>
+                        <option value="terisi">Terisi (Sedang Digunakan)</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                        Kapasitas Meja *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        placeholder="Jumlah kursi"
+                        value={form.capacity}
+                        onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                        className={`w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                          theme === 'dark'
+                            ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={closeModal}
+                        className={`flex-1 px-4 py-3 border rounded-xl font-semibold transition-colors duration-200 ${
+                          theme === 'dark'
+                            ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={modalData.id ? handleEditTable : handleAddTable}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold"
+                      >
+                        {modalData.id ? "Simpan Perubahan" : "Tambah Meja"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
