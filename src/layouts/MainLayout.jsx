@@ -65,7 +65,7 @@ export default function MainLayout({ children }) {
     <div className="flex h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 overflow-hidden transition-colors duration-300">
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md z-20 p-4 flex justify-between items-center">
-        <div className="text-xl font-bold">🍽️ Restaurant App</div>
+        <div className="text-xl font-bold">🍽️ RestoMaster</div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700"
