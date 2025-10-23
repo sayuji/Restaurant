@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS menus (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  price INTEGER NOT NULL,
+  description TEXT,
+  category VARCHAR(100),
+  image TEXT,
+  is_available BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
