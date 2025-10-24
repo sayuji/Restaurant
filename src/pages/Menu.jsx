@@ -36,8 +36,7 @@ export default function Menu() {
     description: "",
     category: null,
     image: null,
-    imageFile: null, // 🔥 TAMBAH INI
-    isAvailable: true
+    imageFile: null,
   });
 
   const [errors, setErrors] = useState({});
@@ -45,7 +44,6 @@ export default function Menu() {
   const [newCategory, setNewCategory] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showConfirm, setShowConfirm] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState(null);
@@ -58,11 +56,9 @@ export default function Menu() {
   const getImageSrc = (imagePath) => {
     if (!imagePath) return null;
     
-    // Jika path baru (uploads/menu-images/)
     if (imagePath.startsWith('/uploads/')) {
       return `http://localhost:5000${imagePath}`;
     }
-    // Jika base64 lama
     return imagePath;
   };
 
@@ -87,18 +83,6 @@ export default function Menu() {
     }
   };
 
-  useEffect(() => {
-    if (menus.length >= 0) {
-      localStorage.setItem("menus", JSON.stringify(menus));
-    }
-  }, [menus]);
-
-  useEffect(() => {
-    if (categories.length >= 0) {
-      localStorage.setItem("categories", JSON.stringify(categories));
-    }
-  }, [categories]);
-
   // Filter and sort menus
   const filteredMenus = useMemo(() => {
     let filtered = menus.filter(menu => {
@@ -107,11 +91,8 @@ export default function Menu() {
                           menu.category?.label.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesCategory = categoryFilter === "all" || menu.category?.value === categoryFilter;
-      const matchesAvailability = availabilityFilter === "all" || 
-                                (availabilityFilter === "available" && menu.isAvailable !== false) ||
-                                (availabilityFilter === "unavailable" && menu.isAvailable === false);
       
-      return matchesSearch && matchesCategory && matchesAvailability;
+      return matchesSearch && matchesCategory;
     });
 
     filtered.sort((a, b) => {
@@ -127,7 +108,7 @@ export default function Menu() {
     });
 
     return filtered;
-  }, [menus, searchTerm, categoryFilter, availabilityFilter, sortBy]);
+  }, [menus, searchTerm, categoryFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredMenus.length / itemsPerPage);
   const paginatedMenus = filteredMenus.slice(
@@ -138,12 +119,10 @@ export default function Menu() {
   // Statistics
   const stats = useMemo(() => {
     const totalMenus = menus.length;
-    const availableMenus = menus.filter(m => m.isAvailable !== false).length;
     const totalCategories = categories.length;
-    
     const totalValue = menus.reduce((sum, menu) => sum + (parseInt(menu.price) || 0), 0);
     
-    return { totalMenus, availableMenus, totalCategories, totalValue };
+    return { totalMenus, totalCategories, totalValue };
   }, [menus, categories]);
 
   const handleAddCategory = (e) => {
@@ -173,13 +152,12 @@ export default function Menu() {
       return;
     }
 
-    // 🔥 Buat preview image untuk form
     const reader = new FileReader();
     reader.onloadend = () => {
       setForm({ 
         ...form, 
         imageFile: file,
-        image: reader.result // Preview image
+        image: reader.result
       });
       setErrors({ ...errors, image: "" });
     };
@@ -226,7 +204,6 @@ export default function Menu() {
       formData.append('price', parseInt(form.price));
       formData.append('description', form.description.trim());
       formData.append('category', JSON.stringify(form.category));
-      formData.append('isAvailable', form.isAvailable);
       
       if (form.imageFile) {
         formData.append('image', form.imageFile);
@@ -250,7 +227,6 @@ export default function Menu() {
         category: null,
         image: null,
         imageFile: null,
-        isAvailable: true
       });
       setErrors({});
       
@@ -263,7 +239,7 @@ export default function Menu() {
   const handleEditMenu = (menu) => {
     setForm({
       ...menu,
-      imageFile: null // Reset imageFile saat edit
+      imageFile: null
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -283,18 +259,6 @@ export default function Menu() {
     } catch (error) {
       console.error('Gagal menghapus menu:', error);
       alert('Gagal menghapus menu dari server');
-    }
-  };
-
-  const toggleAvailability = async (id) => {
-    try {
-      const updatedMenu = await menuAPI.toggleAvailability(id);
-      setMenus(menus.map(menu => 
-        menu.id === id ? updatedMenu : menu
-      ));
-    } catch (error) {
-      console.error('Gagal mengubah status menu:', error);
-      alert('Gagal mengubah status menu');
     }
   };
 
@@ -321,10 +285,6 @@ export default function Menu() {
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalMenus}</p>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Menu</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.availableMenus}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tersedia</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.totalCategories}</p>
@@ -357,7 +317,6 @@ export default function Menu() {
                 category: null,
                 image: null,
                 imageFile: null,
-                isAvailable: true
               })}
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
             >
@@ -493,21 +452,6 @@ export default function Menu() {
                 <p className="text-red-500 dark:text-red-400 text-sm mt-2">{errors.category}</p>
               )}
             </div>
-
-            {/* Availability */}
-            <div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.isAvailable}
-                  onChange={(e) => setForm({ ...form, isAvailable: e.target.checked })}
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Tersedia untuk dipesan
-                </span>
-              </label>
-            </div>
           </div>
 
           {/* Right Column */}
@@ -557,7 +501,7 @@ export default function Menu() {
                   {form.image ? (
                     <div className="space-y-3">
                       <img
-                        src={form.image} // 🔥 Preview image (bisa base64 atau path baru)
+                        src={form.image}
                         alt="Preview"
                         className="w-32 h-32 object-cover rounded-lg mx-auto border"
                       />
@@ -642,20 +586,6 @@ export default function Menu() {
             </select>
 
             <select
-              value={availabilityFilter}
-              onChange={(e) => setAvailabilityFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                theme === 'dark' 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-800'
-              }`}
-            >
-              <option value="all">Semua Status</option>
-              <option value="available">Tersedia</option>
-              <option value="unavailable">Tidak Tersedia</option>
-            </select>
-
-            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
@@ -702,7 +632,7 @@ export default function Menu() {
         </div>
       </motion.div>
 
-      {/* Menu List - 🔥 PASTIKAN MENULIST SUDAH HANDLE IMAGE PATH */}
+      {/* Menu List */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -715,7 +645,6 @@ export default function Menu() {
           menus={paginatedMenus}
           onEdit={handleEditMenu}
           onDelete={handleDeleteMenu}
-          onToggleAvailability={toggleAvailability}
           viewMode={viewMode}
           getImageSrc={getImageSrc}
         />

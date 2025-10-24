@@ -1,6 +1,5 @@
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// Generic API function
 export const api = {
   async get(endpoint) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`);
@@ -11,7 +10,6 @@ export const api = {
   },
 
   async post(endpoint, data) {
-    // Handle FormData (file upload) vs JSON data
     const isFormData = data instanceof FormData;
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -29,7 +27,6 @@ export const api = {
   },
 
   async put(endpoint, data) {
-    // Handle FormData untuk update juga
     const isFormData = data instanceof FormData;
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -57,12 +54,10 @@ export const api = {
   }
 };
 
-// Menu-specific API calls
 export const menuAPI = {
   getAll: () => api.get('/menu'),
   getById: (id) => api.get(`/menu/${id}`),
   create: (menuData) => api.post('/menu', menuData),
   update: (id, menuData) => api.put(`/menu/${id}`, menuData),
   delete: (id) => api.delete(`/menu/${id}`),
-  toggleAvailability: (id) => api.put(`/menu/${id}/toggle-availability`),
 };

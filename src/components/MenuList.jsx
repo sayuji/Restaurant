@@ -5,9 +5,8 @@ export default function MenuList({
   menus = [], 
   onEdit = () => {}, 
   onDelete = () => {},
-  onToggleAvailability = () => {},
   viewMode = "grid",
-  getImageSrc // ✅ PAKAI INI dari parent
+  getImageSrc
 }) {
   const { theme } = useTheme();
 
@@ -32,11 +31,11 @@ export default function MenuList({
                 key={menu.id}
                 className={`rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 ${
                   theme === 'dark' ? 'bg-gray-700' : 'bg-white'
-                } ${!menu.isAvailable ? 'opacity-60' : ''}`}
+                }`}
               >
                 {/* Image */}
                 <div className="relative">
-                  {getImageSrc && getImageSrc(menu.image) ? ( // ✅ PASTIKAN getImageSrc ADA
+                  {getImageSrc && getImageSrc(menu.image) ? (
                     <img
                       src={getImageSrc(menu.image)}
                       alt={menu.name}
@@ -48,15 +47,6 @@ export default function MenuList({
                     </div>
                   )}
                   
-                  {/* Availability Badge */}
-                  <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-semibold ${
-                    menu.isAvailable 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-red-500 text-white'
-                  }`}>
-                    {menu.isAvailable ? 'Tersedia' : 'Habis'}
-                  </div>
-
                   {/* Category Badge */}
                   {menu.category && (
                     <div className="absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white">
@@ -87,21 +77,6 @@ export default function MenuList({
                     </span>
                     
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          console.log('🎯 TOGGLE BUTTON CLICKED - Menu ID:', menu.id);
-                          onToggleAvailability(menu.id);
-                        }}
-                        className={`p-2 rounded-lg transition-colors relative z-50 ${
-                          menu.isAvailable
-                            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                            : 'bg-green-500 hover:bg-green-600 text-white'
-                        }`}
-                        title={menu.isAvailable ? 'Tandai Habis' : 'Tandai Tersedia'}
-                      >
-                        {menu.isAvailable ? '🔴' : '🟢'}
-                      </button>
-                      
                       <button
                         onClick={() => onEdit(menu)}
                         className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
@@ -138,7 +113,6 @@ export default function MenuList({
             <th className="border px-4 py-3 dark:border-gray-600 dark:text-white text-left">Nama</th>
             <th className="border px-4 py-3 dark:border-gray-600 dark:text-white text-left">Harga</th>
             <th className="border px-4 py-3 dark:border-gray-600 dark:text-white text-left">Kategori</th>
-            <th className="border px-4 py-3 dark:border-gray-600 dark:text-white text-left">Status</th>
             <th className="border px-4 py-3 dark:border-gray-600 dark:text-white text-left">Aksi</th>
           </tr>
         </thead>
@@ -146,7 +120,7 @@ export default function MenuList({
           {menus.length === 0 ? (
             <tr>
               <td
-                colSpan={6}
+                colSpan={5}
                 className="text-center py-8 text-gray-500 dark:text-gray-400"
               >
                 <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
@@ -155,9 +129,7 @@ export default function MenuList({
             </tr>
           ) : (
             menus.map((menu) => (
-              <tr key={menu.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                !menu.isAvailable ? 'opacity-60' : ''
-              }`}>
+              <tr key={menu.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td className="border px-4 py-3 dark:border-gray-600">
                   {getImageSrc && getImageSrc(menu.image) ? (
                     <img
@@ -185,21 +157,6 @@ export default function MenuList({
                       {menu.category.label}
                     </span>
                   )}
-                </td>
-                <td className="border px-4 py-3 dark:border-gray-600">
-                  <button
-                    onClick={() => {
-                      console.log('🎯 TOGGLE BUTTON CLICKED - Menu ID:', menu.id);
-                      onToggleAvailability(menu.id);
-                    }}
-                    className={`p-2 rounded-lg transition-colors relative z-50 ${
-                      menu.isAvailable
-                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                        : 'bg-green-500 hover:bg-green-600 text-white'
-                    }`}
-                  >
-                    {menu.isAvailable ? '🔴' : '🟢'}
-                  </button>
                 </td>
                 <td className="border px-4 py-3 dark:border-gray-600">
                   <div className="flex gap-2">
