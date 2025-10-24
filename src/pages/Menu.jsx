@@ -36,6 +36,7 @@ export default function Menu() {
     description: "",
     category: null,
     image: null,
+    imageFile: null, // 🔥 TAMBAH INI
     isAvailable: true
   });
 
@@ -48,10 +49,22 @@ export default function Menu() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showConfirm, setShowConfirm] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState(null);
-  const [viewMode, setViewMode] = useState("grid"); // grid or list
-  const [sortBy, setSortBy] = useState("name"); // name, price, date
+  const [viewMode, setViewMode] = useState("grid");
+  const [sortBy, setSortBy] = useState("name");
 
   const itemsPerPage = viewMode === "grid" ? 8 : 10;
+
+  // 🔥 FUNCTION UNTUK HANDLE IMAGE PATH
+  const getImageSrc = (imagePath) => {
+    if (!imagePath) return null;
+    
+    // Jika path baru (uploads/menu-images/)
+    if (imagePath.startsWith('/uploads/')) {
+      return `http://localhost:5000${imagePath}`;
+    }
+    // Jika base64 lama
+    return imagePath;
+  };
 
   useEffect(() => {
     loadMenusFromBackend();
@@ -63,7 +76,6 @@ export default function Menu() {
       setMenus(menusData);
     } catch (error) {
       console.error('Gagal memuat menu dari backend:', error);
-      // Fallback ke localStorage kalo backend error
       try {
         const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
         if (Array.isArray(savedMenus)) {
@@ -75,7 +87,6 @@ export default function Menu() {
     }
   };
 
-  // Save to localStorage
   useEffect(() => {
     if (menus.length >= 0) {
       localStorage.setItem("menus", JSON.stringify(menus));
@@ -103,7 +114,6 @@ export default function Menu() {
       return matchesSearch && matchesCategory && matchesAvailability;
     });
 
-    // Sort menus
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "price":
@@ -153,21 +163,24 @@ export default function Menu() {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setErrors({ ...errors, image: "File harus berupa gambar" });
       return;
     }
     
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setErrors({ ...errors, image: "Ukuran gambar maksimal 5MB" });
       return;
     }
 
+    // 🔥 Buat preview image untuk form
     const reader = new FileReader();
     reader.onloadend = () => {
-      setForm({ ...form, image: reader.result });
+      setForm({ 
+        ...form, 
+        imageFile: file,
+        image: reader.result // Preview image
+      });
       setErrors({ ...errors, image: "" });
     };
     reader.readAsDataURL(file);
@@ -176,30 +189,55 @@ export default function Menu() {
   const handleAddMenu = async (e) => {
     e.preventDefault();
     
-    // Validation code tetap sama...
     let tempErrors = {};
     let hasError = false;
-    // ... validation logic yang sama
+
+    if (!form.name.trim()) {
+      tempErrors.name = "Nama menu wajib diisi";
+      hasError = true;
+    }
+    
+    if (!form.price || parseInt(form.price) <= 0) {
+      tempErrors.price = "Harga wajib diisi dan harus lebih dari 0";
+      hasError = true;
+    }
+    
+    if (!form.description.trim()) {
+      tempErrors.description = "Deskripsi wajib diisi";
+      hasError = true;
+    }
+    
+    if (!form.category) {
+      tempErrors.category = "Kategori wajib dipilih";
+      hasError = true;
+    }
+    
+    if (!form.imageFile && !form.image) {
+      tempErrors.image = "Gambar wajib diupload";
+      hasError = true;
+    }
 
     setErrors(tempErrors);
     if (hasError) return;
 
     try {
-      const menuData = {
-        name: form.name.trim(),
-        price: parseInt(form.price),
-        description: form.description.trim(),
-        category: form.category,
-        image: form.image,
-        isAvailable: form.isAvailable
-      };
+      const formData = new FormData();
+      formData.append('name', form.name.trim());
+      formData.append('price', parseInt(form.price));
+      formData.append('description', form.description.trim());
+      formData.append('category', JSON.stringify(form.category));
+      formData.append('isAvailable', form.isAvailable);
+      
+      if (form.imageFile) {
+        formData.append('image', form.imageFile);
+      }
 
       let result;
       if (form.id) {
-        result = await menuAPI.update(form.id, menuData);
+        result = await menuAPI.update(form.id, formData);
         setMenus(menus.map((m) => (m.id === form.id ? result : m)));
       } else {
-        result = await menuAPI.create(menuData);
+        result = await menuAPI.create(formData);
         setMenus([...menus, result]);
       }
 
@@ -211,18 +249,22 @@ export default function Menu() {
         description: "",
         category: null,
         image: null,
+        imageFile: null,
         isAvailable: true
       });
       setErrors({});
       
     } catch (error) {
       console.error('Gagal menyimpan menu:', error);
-      alert('Gagal menyimpan menu ke server');
+      alert('Gagal menyimpan menu: ' + error.message);
     }
   };
 
   const handleEditMenu = (menu) => {
-    setForm(menu);
+    setForm({
+      ...menu,
+      imageFile: null // Reset imageFile saat edit
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -244,17 +286,16 @@ export default function Menu() {
     }
   };
 
-  const toggleAvailability = (id) => {
-    setMenus(menus.map(menu => 
-      menu.id === id ? { ...menu, isAvailable: !menu.isAvailable } : menu
-    ));
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR'
-    }).format(amount);
+  const toggleAvailability = async (id) => {
+    try {
+      const updatedMenu = await menuAPI.toggleAvailability(id);
+      setMenus(menus.map(menu => 
+        menu.id === id ? updatedMenu : menu
+      ));
+    } catch (error) {
+      console.error('Gagal mengubah status menu:', error);
+      alert('Gagal mengubah status menu');
+    }
   };
 
   return (
@@ -315,6 +356,7 @@ export default function Menu() {
                 description: "",
                 category: null,
                 image: null,
+                imageFile: null,
                 isAvailable: true
               })}
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
@@ -515,7 +557,7 @@ export default function Menu() {
                   {form.image ? (
                     <div className="space-y-3">
                       <img
-                        src={form.image}
+                        src={form.image} // 🔥 Preview image (bisa base64 atau path baru)
                         alt="Preview"
                         className="w-32 h-32 object-cover rounded-lg mx-auto border"
                       />
@@ -660,7 +702,7 @@ export default function Menu() {
         </div>
       </motion.div>
 
-      {/* Menu List */}
+      {/* Menu List - 🔥 PASTIKAN MENULIST SUDAH HANDLE IMAGE PATH */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -675,6 +717,7 @@ export default function Menu() {
           onDelete={handleDeleteMenu}
           onToggleAvailability={toggleAvailability}
           viewMode={viewMode}
+          getImageSrc={getImageSrc}
         />
 
         {/* Empty State */}

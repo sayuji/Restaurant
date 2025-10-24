@@ -1,10 +1,49 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const pool = require('./config/database');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// 🔥 Setup Multer untuk file upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/menu-images';
+    // Buat folder kalo belum ada
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: timestamp-randomnumber-originalname
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const fileExtension = path.extname(file.originalname);
+    cb(null, 'menu-' + uniqueSuffix + fileExtension);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Cek file type
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Hanya file gambar yang diizinkan!'), false);
+    }
+  }
+});
+
+// 🔥 Serve static files untuk akses gambar
+app.use('/uploads', express.static('uploads'));
 
 app.use(cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
@@ -12,24 +51,24 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Test route
 app.get('/api', (req, res) => {
   res.json({ 
-    message: 'Halo bang! Backend RESTAURANT dengan PostgreSQL udah jalan! 🚀',
+    message: 'Halo bang! Backend RESTAURANT dengan File Upload udah jalan! 🚀',
     status: 'OK'
   });
 });
 
-// 🔥 POSTGRESQL ROUTES
+// 🔥 POSTGRESQL ROUTES DENGAN FILE UPLOAD
 
 // GET all menus
 app.get('/api/menu', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menus ORDER BY created_at DESC');
     
-    // 🔥 CONVERT category string ke object yang diexpect frontend
+    // CONVERT category string ke object yang diexpect frontend
     const menusWithCategoryObject = result.rows.map(menu => ({
       ...menu,
       category: menu.category ? { 
@@ -46,30 +85,43 @@ app.get('/api/menu', async (req, res) => {
   }
 });
 
-// POST create new menu
-app.post('/api/menu', async (req, res) => {
+// POST create new menu - DENGAN FILE UPLOAD
+app.post('/api/menu', upload.single('image'), async (req, res) => {
   try {
-    const { name, price, description, category, image, isAvailable } = req.body;
+    const { name, price, description, category, isAvailable } = req.body;
     
     console.log('➕ POST /api/menu - Data received:', {
-      name, price, category: category?.value, hasImage: !!image
+      name, price, category: category?.value, hasImage: !!req.file
     });
 
-    // Handle base64 image truncation
-    let processedImage = image;
-    if (processedImage && processedImage.length > 1000000) {
-      console.log('🖼️ Image too large, truncating...');
-      processedImage = processedImage.substring(0, 1000000);
+    // 🔥 Handle uploaded file
+    let imagePath = null;
+    if (req.file) {
+      imagePath = `/uploads/menu-images/${req.file.filename}`;
+      console.log('🖼️ Image saved:', imagePath);
+    }
+
+    // Parse category dari string JSON (kalo dari FormData)
+    let categoryValue = category;
+    if (typeof category === 'string') {
+      try {
+        const categoryObj = JSON.parse(category);
+        categoryValue = categoryObj.value;
+      } catch (e) {
+        categoryValue = category;
+      }
+    } else {
+      categoryValue = category?.value;
     }
 
     const result = await pool.query(
       `INSERT INTO menus (name, price, description, category, image, is_available) 
        VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [name, price, description, category?.value, processedImage, isAvailable !== false]
+      [name, price, description, categoryValue, imagePath, isAvailable !== false]
     );
 
-    // 🔥 CONVERT response ke format yang diexpect frontend
+    // Convert category untuk frontend
     const menuWithCategoryObject = {
       ...result.rows[0],
       category: result.rows[0].category ? {
@@ -82,37 +134,80 @@ app.post('/api/menu', async (req, res) => {
     res.status(201).json(menuWithCategoryObject);
   } catch (error) {
     console.error('❌ Error creating menu:', error);
+    
+    // Hapus file yang udah diupload kalo ada error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PUT update menu
-app.put('/api/menu/:id', async (req, res) => {
+// PUT update menu - DENGAN FILE UPLOAD
+app.put('/api/menu/:id', upload.single('image'), async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
-    const { name, price, description, category, image, isAvailable } = req.body;
+    const { name, price, description, category, isAvailable } = req.body;
     
-    console.log('✏️ PUT /api/menu/' + menuId, { name, price, category: category?.value });
+    console.log('✏️ PUT /api/menu/' + menuId, { 
+      name, price, 
+      category: typeof category === 'string' ? JSON.parse(category)?.value : category?.value,
+      hasNewImage: !!req.file 
+    });
 
-    // Handle base64 image
-    let processedImage = image;
-    if (processedImage && processedImage.length > 1000000) {
-      processedImage = processedImage.substring(0, 1000000);
+    // Parse category
+    let categoryValue = category;
+    if (typeof category === 'string') {
+      try {
+        const categoryObj = JSON.parse(category);
+        categoryValue = categoryObj.value;
+      } catch (e) {
+        categoryValue = category;
+      }
+    } else {
+      categoryValue = category?.value;
+    }
+
+    // 🔥 Handle image update
+    let imageUpdate = '';
+    let queryParams = [name, price, description, categoryValue, isAvailable !== false, menuId];
+    
+    if (req.file) {
+      // Ada file baru - update image path
+      const newImagePath = `/uploads/menu-images/${req.file.filename}`;
+      imageUpdate = ', image = $7';
+      queryParams.push(newImagePath);
+      
+      // Hapus file lama kalo ada
+      const oldMenu = await pool.query('SELECT image FROM menus WHERE id = $1', [menuId]);
+      if (oldMenu.rows[0]?.image && oldMenu.rows[0].image.startsWith('/uploads/')) {
+        const oldImagePath = oldMenu.rows[0].image.substring(1); // Remove leading slash
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+          console.log('🗑️ Old image deleted:', oldImagePath);
+        }
+      }
     }
 
     const result = await pool.query(
       `UPDATE menus 
-       SET name = $1, price = $2, description = $3, category = $4, image = $5, is_available = $6, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7 
+       SET name = $1, price = $2, description = $3, category = $4, is_available = $5, 
+           updated_at = CURRENT_TIMESTAMP ${imageUpdate}
+       WHERE id = $6 
        RETURNING *`,
-      [name, price, description, category?.value, processedImage, isAvailable !== false, menuId]
+      queryParams
     );
 
     if (result.rows.length === 0) {
+      // Hapus file baru kalo menu ga ketemu
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
       return res.status(404).json({ error: 'Menu not found' });
     }
 
-    // 🔥 CONVERT response untuk update juga
+    // Convert response untuk frontend
     const menuWithCategoryObject = {
       ...result.rows[0],
       category: result.rows[0].category ? {
@@ -125,21 +220,76 @@ app.put('/api/menu/:id', async (req, res) => {
     res.json(menuWithCategoryObject);
   } catch (error) {
     console.error('❌ Error updating menu:', error);
+    
+    // Hapus file baru kalo ada error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE menu
+// PUT toggle menu availability
+app.put('/api/menu/:id/toggle-availability', async (req, res) => {
+  try {
+    const menuId = parseInt(req.params.id);
+    console.log('🔄 PUT /api/menu/' + menuId + '/toggle-availability');
+
+    const result = await pool.query(
+      `UPDATE menus 
+       SET is_available = NOT is_available, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 
+       RETURNING *`,
+      [menuId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Menu not found' });
+    }
+
+    // Convert category untuk frontend
+    const menuWithCategoryObject = {
+      ...result.rows[0],
+      category: result.rows[0].category ? {
+        value: result.rows[0].category,
+        label: result.rows[0].category
+      } : null
+    };
+
+    console.log('✅ Menu availability toggled - ID:', menuId, 'Available:', menuWithCategoryObject.is_available);
+    res.json(menuWithCategoryObject);
+  } catch (error) {
+    console.error('❌ Error toggling menu availability:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE menu - DENGAN FILE CLEANUP
 app.delete('/api/menu/:id', async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
     console.log('🗑️ DELETE /api/menu/' + menuId);
 
-    const result = await pool.query('DELETE FROM menus WHERE id = $1 RETURNING *', [menuId]);
+    // Dapatkan info menu sebelum delete untuk hapus file
+    const menuResult = await pool.query('SELECT image FROM menus WHERE id = $1', [menuId]);
     
-    if (result.rows.length === 0) {
+    if (menuResult.rows.length === 0) {
       return res.status(404).json({ error: 'Menu not found' });
     }
+
+    // Hapus file image kalo ada
+    const imagePath = menuResult.rows[0].image;
+    if (imagePath && imagePath.startsWith('/uploads/')) {
+      const fullPath = imagePath.substring(1); // Remove leading slash
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+        console.log('🗑️ Image file deleted:', fullPath);
+      }
+    }
+
+    // Hapus dari database
+    const result = await pool.query('DELETE FROM menus WHERE id = $1 RETURNING *', [menuId]);
 
     console.log('✅ Menu deleted - ID:', menuId);
     res.json({ message: 'Menu deleted successfully' });
@@ -150,7 +300,8 @@ app.delete('/api/menu/:id', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🍔 Backend dengan PostgreSQL jalan di http://localhost:${PORT}`);
+  console.log(`🍔 Backend dengan File Upload jalan di http://localhost:${PORT}`);
   console.log(`📱 Database: PostgreSQL - restaurant_db`);
-  console.log(`🔥 Category conversion: READY!`);
+  console.log(`🖼️ File Upload: READY!`);
+  console.log(`📁 Upload folder: /uploads/menu-images/`);
 });

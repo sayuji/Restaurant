@@ -11,30 +11,38 @@ export const api = {
   },
 
   async post(endpoint, data) {
+    // Handle FormData (file upload) vs JSON data
+    const isFormData = data instanceof FormData;
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+      body: isFormData ? data : JSON.stringify(data),
     });
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`POST failed: ${response.status} - ${errorText}`);
     }
+    
     return response.json();
   },
 
   async put(endpoint, data) {
+    // Handle FormData untuk update juga
+    const isFormData = data instanceof FormData;
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+      body: isFormData ? data : JSON.stringify(data),
     });
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`PUT failed: ${response.status} - ${errorText}`);
     }
+    
     return response.json();
   },
 
@@ -56,4 +64,5 @@ export const menuAPI = {
   create: (menuData) => api.post('/menu', menuData),
   update: (id, menuData) => api.put(`/menu/${id}`, menuData),
   delete: (id) => api.delete(`/menu/${id}`),
+  toggleAvailability: (id) => api.put(`/menu/${id}/toggle-availability`),
 };
