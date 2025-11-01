@@ -55,9 +55,27 @@ export const api = {
 };
 
 export const menuAPI = {
-  getAll: () => api.get('/menu'),
-  getById: (id) => api.get(`/menu/${id}`),
-  create: (menuData) => api.post('/menu', menuData),
-  update: (id, menuData) => api.put(`/menu/${id}`, menuData),
-  delete: (id) => api.delete(`/menu/${id}`),
+    getAll: () => api.get('/menu'),
+    getById: (id) => api.get(`/menu/${id}`),
+    create: (menuData) => api.post('/menu', menuData),
+    update: (id, menuData) => api.put(`/menu/${id}`, menuData),
+    delete: (id) => api.delete(`/menu/${id}`),
+};
+
+export const tablesAPI = {
+    getAll: () => api.get('/tables'),
+    getById: (id) => api.get(`/tables/${id}`),
+    create: (tableData) => api.post('/tables', tableData),
+    update: (id, tableData) => api.put(`/tables/${id}`, tableData),
+    delete: (id) => api.delete(`/tables/${id}`),
+    updateStatus: (id, status) => api.put(`/tables/${id}/status`, { status }),
+};
+
+export const ordersAPI = {
+    getAll: () => api.get('/orders'),
+    getById: (id) => api.get(`/orders/${id}`),
+    create: (orderData) => api.post('/orders', orderData),
+    update: (id, orderData) => api.put(`/orders/${id}`, orderData),
+    delete: (id) => api.delete(`/orders/${id}`),
+    updateStatus: (id, status) => api.put(`/orders/${id}/status`, { status }),
 };

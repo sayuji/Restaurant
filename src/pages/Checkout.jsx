@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { useTheme } from "../context/ThemeContext";
+import { ordersAPI, tablesAPI } from '../services/api';
 
 export default function Checkout() {
   const { theme } = useTheme();
@@ -9,6 +10,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [orderData, setOrderData] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [loading, setLoading] = useState(false);
 
   // 🔹 Ambil data pesanan dari location atau localStorage
   useEffect(() => {
@@ -20,6 +22,156 @@ export default function Checkout() {
       if (saved) setOrderData(JSON.parse(saved));
     }
   }, [location.state]);
+
+  // 🔥 FUNGSI KONFIRMASI PESANAN - INTEGRASI DATABASE
+  const handleConfirm = async () => {
+    if (!orderData) return;
+    
+    setLoading(true);
+
+    try {
+      const result = await Swal.fire({
+        title: "Konfirmasi Pesanan?",
+        html: `
+          <div class="text-left">
+            <p class="mb-2">Pastikan semua pesanan sudah benar sebelum dikonfirmasi.</p>
+            <p class="text-sm text-gray-600">Metode Pembayaran: <strong>${paymentMethod === 'cash' ? 'Tunai' : 'QRIS'}</strong></p>
+          </div>
+        `,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#16a34a",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Ya, konfirmasi!",
+        cancelButtonText: "Batal",
+      });
+
+      if (result.isConfirmed) {
+        console.log('🔄 Processing order confirmation...', orderData);
+
+        // 🔥 BUAT ORDER DI DATABASE
+        const orderPayload = {
+          tableId: orderData.tableId,
+          tableName: orderData.tableName || orderData.namaMeja,
+          items: orderData.items,
+          totalHarga: totalHarga,
+          paymentMethod: paymentMethod,
+          status: "pending"
+        };
+
+        // ✅ CREATE ORDER DI DATABASE
+        const orderResponse = await ordersAPI.create(orderPayload);
+        
+        if (orderResponse.success) {
+          console.log('✅ Order created in database:', orderResponse.orderId);
+
+          // 🔥 UPDATE TABLE STATUS DI DATABASE
+          await tablesAPI.updateStatus(orderData.tableId, 'terisi');
+          console.log('✅ Table status updated to "terisi"');
+
+          // 🔥 SIMPAN KE LOCALSTORAGE SEBAGAI BACKUP & UNTUK TV DISPLAY
+          const existingOrders = JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
+          
+          const newOrder = {
+            id: orderResponse.orderId,
+            ...orderData,
+            totalHarga,
+            paymentMethod,
+            waktu: new Date().toLocaleTimeString(),
+            tanggal: new Date().toLocaleDateString(),
+            status: "Sedang Diproses",
+            databaseId: orderResponse.orderId // Simpan ID dari database
+          };
+
+          existingOrders.push(newOrder);
+          localStorage.setItem("ordersOnProgress", JSON.stringify(existingOrders));
+
+          // 🔥 HAPUS DATA SEMENTARA
+          localStorage.removeItem("orderData");
+          localStorage.removeItem("currentOrder");
+
+          // 🔥 NOTIFIKASI SUKSES
+          await Swal.fire({
+            title: "Berhasil!",
+            text: "Pesanan berhasil dikonfirmasi 🎉",
+            icon: "success",
+            confirmButtonColor: "#16a34a",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+
+          // 🔥 REDIRECT KE HALAMAN UTAMA
+          setTimeout(() => navigate("/"), 2000);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error confirming order:', error);
+      
+      // 🔥 FALLBACK KE LOCALSTORAGE JIKA DATABASE ERROR
+      await Swal.fire({
+        title: "Peringatan!",
+        html: `
+          <div class="text-left">
+            <p class="mb-2">Gagal menyimpan ke database.</p>
+            <p class="text-sm text-gray-600">Menggunakan penyimpanan lokal sebagai cadangan.</p>
+          </div>
+        `,
+        icon: "warning",
+        confirmButtonColor: "#f59e0b",
+        confirmButtonText: "Lanjutkan dengan Local Storage",
+      });
+
+      // Fallback ke localStorage
+      const existingOrders = JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
+      
+      const newOrder = {
+        id: Date.now(),
+        ...orderData,
+        totalHarga,
+        paymentMethod,
+        waktu: new Date().toLocaleTimeString(),
+        tanggal: new Date().toLocaleDateString(),
+        status: "Sedang Diproses",
+      };
+
+      existingOrders.push(newOrder);
+      localStorage.setItem("ordersOnProgress", JSON.stringify(existingOrders));
+      localStorage.removeItem("orderData");
+      localStorage.removeItem("currentOrder");
+
+      // Update table status di localStorage
+      const tables = JSON.parse(localStorage.getItem("tables")) || [];
+      const updatedTables = tables.map(t => 
+        t.id === orderData.tableId ? { ...t, status: "terisi" } : t
+      );
+      localStorage.setItem("tables", JSON.stringify(updatedTables));
+
+      setTimeout(() => navigate("/"), 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔹 Hitung total harga
+  const totalHarga = orderData?.items?.reduce((acc, item) => acc + item.harga * item.qty, 0) || 0;
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex justify-center items-center transition-colors duration-300 ${
+        theme === 'dark' 
+          ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className={`text-lg ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Memproses pesanan...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!orderData) {
     return (
@@ -47,66 +199,6 @@ export default function Checkout() {
       </div>
     );
   }
-
-  // 🔹 Hitung total harga
-  const totalHarga =
-    orderData.items?.reduce((acc, item) => acc + item.harga * item.qty, 0) || 0;
-
-  // 🔹 Fungsi konfirmasi pesanan
-  const handleConfirm = async () => {
-    const result = await Swal.fire({
-      title: "Konfirmasi Pesanan?",
-      html: `
-        <div class="text-left">
-          <p class="mb-2">Pastikan semua pesanan sudah benar sebelum dikonfirmasi.</p>
-          <p class="text-sm text-gray-600">Metode Pembayaran: <strong>${paymentMethod === 'cash' ? 'Tunai' : 'QRIS'}</strong></p>
-        </div>
-      `,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: "#16a34a",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Ya, konfirmasi!",
-      cancelButtonText: "Batal",
-    });
-
-    if (result.isConfirmed) {
-      // 🔹 Ambil daftar pesanan yang sedang berlangsung (untuk TV Display)
-      const existingOrders =
-        JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
-
-      // 🔹 Buat pesanan baru lengkap dengan waktu, tanggal, dan status
-      const newOrder = {
-        id: Date.now(),
-        ...orderData,
-        totalHarga,
-        paymentMethod,
-        waktu: new Date().toLocaleTimeString(),
-        tanggal: new Date().toLocaleDateString(),
-        status: "Sedang Diproses",
-      };
-
-      // 🔹 Tambahkan pesanan baru ke daftar
-      existingOrders.push(newOrder);
-      localStorage.setItem("ordersOnProgress", JSON.stringify(existingOrders));
-
-      // 🔹 Hapus order sementara (checkout)
-      localStorage.removeItem("orderData");
-
-      // 🔹 Tampilkan notifikasi sukses
-      Swal.fire({
-        title: "Berhasil!",
-        text: "Pesanan berhasil dikonfirmasi 🎉",
-        icon: "success",
-        confirmButtonColor: "#16a34a",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-
-      // 🔹 Redirect ke halaman utama setelah delay 2 detik
-      setTimeout(() => navigate("/"), 2000);
-    }
-  };
 
   return (
     <div className={`min-h-screen py-8 px-4 transition-colors duration-300 ${
@@ -162,7 +254,7 @@ export default function Checkout() {
                   }`}>Nama Meja</p>
                   <p className={`font-semibold ${
                     theme === 'dark' ? 'text-white' : 'text-gray-800'
-                  }`}>{orderData.namaMeja}</p>
+                  }`}>{orderData.tableName || orderData.namaMeja}</p>
                 </div>
               </div>
             </div>
@@ -379,12 +471,26 @@ export default function Checkout() {
               </button>
               <button
                 onClick={handleConfirm}
-                className="flex-2 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-8 rounded-lg hover:from-green-700 hover:to-green-800 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                disabled={loading}
+                className={`flex-2 py-3 px-8 rounded-lg font-semibold shadow-lg transition-all duration-300 ${
+                  loading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 transform hover:-translate-y-0.5 hover:shadow-xl'
+                } text-white`}
               >
-                <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Konfirmasi Pesanan
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block mr-2"></div>
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Konfirmasi Pesanan
+                  </>
+                )}
               </button>
             </div>
           </div>

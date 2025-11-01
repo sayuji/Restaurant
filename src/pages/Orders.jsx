@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FiSearch, FiMinus, FiPlus, FiShoppingCart, FiX } from "react-icons/fi";
 import { decryptTableParam, getQueryParam, isValidEncryptedParam } from "../utils/encryption";
 import { useTheme } from "../context/ThemeContext";
+import { menuAPI, ordersAPI, tablesAPI } from '../services/api';
 
 export default function Orders() {
   const { theme } = useTheme();
@@ -16,38 +17,6 @@ export default function Orders() {
   const [showTableSelector, setShowTableSelector] = useState(false);
   const [availableTables, setAvailableTables] = useState([]);
 
-  useEffect(() => {
-    const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
-    setAvailableTables(savedTables);
-    
-    const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
-    
-    if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
-      const decryptedTableId = decryptTableParam(encryptedTableParam);
-      const foundTable = savedTables.find(table => table.id === decryptedTableId);
-      
-      if (foundTable) {
-        setSelectedTable(foundTable);
-        setShowTableSelector(false);
-      } else {
-        setShowTableSelector(true);
-      }
-    } else {
-      setShowTableSelector(true);
-    }
-  }, [location.search, location.pathname]);
-
-  useEffect(() => {
-    const savedMenus = JSON.parse(localStorage.getItem("menus")) || [];
-    setMenus(savedMenus);
-
-    const uniqueCats = [
-      { value: "all", label: "Semua Menu" },
-      ...new Map(savedMenus.map((m) => [m.category.value, m.category])).values(),
-    ];
-    setCategories(uniqueCats);
-  }, []);
-
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [orderItems, setOrderItems] = useState([]);
@@ -55,22 +24,134 @@ export default function Orders() {
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
 
+  // 🔥 LOAD DATA DARI DATABASE - SAMA PATTERN DENGAN MENU.JSX
+  useEffect(() => {
+    loadTablesFromBackend();
+    loadMenusFromBackend();
+    
+    // Handle table parameter dari URL
+    const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
+    
+    if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
+      const decryptedTableId = decryptTableParam(encryptedTableParam);
+      // Table akan di-set setelah data tables loaded
+    } else {
+      setShowTableSelector(true);
+    }
+  }, [location.search, location.pathname]);
+
+  // 🔥 LOAD TABLES DARI DATABASE
+  const loadTablesFromBackend = async () => {
+    try {
+      console.log('🔄 Loading tables dari database...');
+      const tablesData = await tablesAPI.getAll();
+      setAvailableTables(tablesData);
+      console.log('✅ Tables loaded:', tablesData.length);
+      
+      // Handle table selection dari URL parameter
+      const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
+      
+      if (encryptedTableParam && isValidEncryptedParam(encryptedTableParam)) {
+        const decryptedTableId = decryptTableParam(encryptedTableParam);
+        const foundTable = tablesData.find(table => table.id.toString() === decryptedTableId);
+        
+        if (foundTable) {
+          setSelectedTable(foundTable);
+          setShowTableSelector(false);
+          console.log('✅ Table selected from URL:', foundTable.name);
+        } else {
+          setShowTableSelector(true);
+          console.log('❌ Table not found from URL, showing selector');
+        }
+      } else {
+        setShowTableSelector(true);
+      }
+      
+    } catch (error) {
+      console.error('❌ Gagal memuat tables dari backend:', error);
+      // Fallback ke localStorage
+      try {
+        const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
+        setAvailableTables(savedTables);
+        console.log('🔄 Using localStorage fallback for tables');
+      } catch (localError) {
+        console.error('❌ Juga gagal baca localStorage:', localError);
+      }
+    }
+  };
+
+  // 🔥 LOAD MENUS DARI DATABASE - SAMA PERSIS DENGAN MENU.JSX
+  const loadMenusFromBackend = async () => {
+    try {
+      console.log('🔄 Loading menus dari database...');
+      const menusData = await menuAPI.getAll();
+      setMenus(menusData);
+      console.log('✅ Menus loaded:', menusData.length);
+
+      // Extract categories dari menus
+      const uniqueCats = [
+        { value: "all", label: "Semua Menu" },
+        ...new Map(menusData
+          .filter(menu => menu.category && menu.category.value)
+          .map((m) => [m.category.value, m.category])
+        ).values(),
+      ];
+      setCategories(uniqueCats);
+      
+    } catch (error) {
+      console.error('❌ Gagal memuat menu dari backend:', error);
+      // Fallback ke localStorage
+      try {
+        const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
+        if (Array.isArray(savedMenus)) {
+          setMenus(savedMenus);
+          
+          const uniqueCats = [
+            { value: "all", label: "Semua Menu" },
+            ...new Map(savedMenus
+              .filter(menu => menu.category && menu.category.value)
+              .map((m) => [m.category.value, m.category])
+            ).values(),
+          ];
+          setCategories(uniqueCats);
+        }
+        console.log('🔄 Using localStorage fallback for menus');
+      } catch (localError) {
+        console.error('❌ Juga gagal baca localStorage:', localError);
+      }
+    }
+  };
+
+  // Filter menus
   const filteredMenus = useMemo(() => {
     return menus.filter((menu) => {
       const matchCategory =
-        selectedCategory === "all" || menu.category.value === selectedCategory;
+        selectedCategory === "all" || (menu.category && menu.category.value === selectedCategory);
       const matchSearch = menu.name
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-      return matchCategory && matchSearch;
+      return matchCategory && matchSearch && menu.is_available !== false;
     });
   }, [menus, selectedCategory, searchTerm]);
 
+  // Save current order to localStorage
   useEffect(() => {
     localStorage.setItem("currentOrder", JSON.stringify(orderItems));
   }, [orderItems]);
 
+  // Helper function untuk handle image path
+  const getImageSrc = (imagePath) => {
+    if (!imagePath) return null;
+    
+    if (imagePath.startsWith('/uploads/')) {
+      return `http://localhost:5000${imagePath}`;
+    }
+    return imagePath;
+  };
+
+  // Order functions
   const addToOrder = (menu, qty = 1, note = "") => {
     const exist = orderItems.find((item) => item.id === menu.id);
     if (exist) {
@@ -104,14 +185,20 @@ export default function Orders() {
     0
   );
 
-  const handleCheckout = () => {
+  // 🔥 HANDLE CHECKOUT - INTEGRASI DENGAN DATABASE
+  const handleCheckout = async () => {
     if (orderItems.length === 0) return;
     if (!selectedTable) {
       alert("Silakan pilih meja terlebih dahulu!");
       return;
     }
 
+    if (loading) return;
+    setLoading(true);
+
     const orderData = {
+      tableId: selectedTable.id,
+      tableName: selectedTable.name,
       items: orderItems.map((item) => ({
         nama: item.name,
         qty: item.quantity,
@@ -119,24 +206,58 @@ export default function Orders() {
         catatan: item.notes,
       })),
       totalHarga: totalPrice,
-      namaMeja: selectedTable.name,
-      tableId: selectedTable.id,
     };
 
-    // 🔹 Update status meja menjadi "terisi"
-    const tables = JSON.parse(localStorage.getItem("tables")) || [];
-    const updatedTables = tables.map((t) =>
-      t.id === selectedTable.id ? { ...t, status: "terisi" } : t
-    );
-    localStorage.setItem("tables", JSON.stringify(updatedTables));
-
-    // 🔹 Simpan data order
-    localStorage.setItem("orderData", JSON.stringify(orderData));
-
-    navigate("/checkout", { state: orderData });
+    try {
+      console.log('🔄 Creating order in database...', orderData);
+      
+      // ✅ CREATE ORDER DI DATABASE - SAMA PATTERN DENGAN MENU.JSX
+      const response = await ordersAPI.create(orderData);
+      
+      if (response.success) {
+        console.log('✅ Order created successfully:', response.orderId);
+        
+        // ✅ UPDATE TABLE STATUS DI DATABASE
+        await tablesAPI.updateStatus(selectedTable.id, 'terisi');
+        console.log('✅ Table status updated to "terisi"');
+        
+        // Update local state
+        const updatedTables = availableTables.map((t) =>
+          t.id === selectedTable.id ? { ...t, status: "terisi" } : t
+        );
+        setAvailableTables(updatedTables);
+        
+        // Save to localStorage sebagai backup
+        localStorage.setItem("tables", JSON.stringify(updatedTables));
+        
+        // Navigate ke checkout dengan data order
+        navigate("/checkout", { 
+          state: { 
+            ...orderData, 
+            orderId: response.orderId 
+          } 
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error creating order:', error);
+      alert('Gagal membuat order. Silakan coba lagi.');
+      
+      // Fallback: save to localStorage
+      console.log('🔄 Using localStorage fallback for order...');
+      const tables = JSON.parse(localStorage.getItem("tables")) || [];
+      const updatedTables = tables.map((t) =>
+        t.id === selectedTable.id ? { ...t, status: "terisi" } : t
+      );
+      localStorage.setItem("tables", JSON.stringify(updatedTables));
+      localStorage.setItem("orderData", JSON.stringify(orderData));
+      
+      navigate("/checkout", { state: orderData });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 🔹 Table Selector Component
+  // 🔥 TABLE SELECTOR COMPONENT
   const TableSelector = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden transition-colors duration-300">
@@ -146,36 +267,51 @@ export default function Orders() {
         </div>
         
         <div className="p-4 max-h-96 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3">
-            {availableTables.map((table) => (
-              <button
-                key={table.id}
-                onClick={() => {
-                  setSelectedTable(table);
-                  setShowTableSelector(false);
-                }}
-                className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
-                  table.status === "kosong"
-                    ? "border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500"
-                    : "border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 opacity-60 cursor-not-allowed"
-                }`}
-                disabled={table.status !== "kosong"}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-800 dark:text-white">{table.name}</h3>
-                  <div className={`w-3 h-3 rounded-full ${
-                    table.status === "kosong" ? "bg-green-500" : "bg-red-500"
-                  }`}></div>
-                </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {table.status === "kosong" ? "Tersedia" : "Terisi"}
-                </p>
-              </button>
-            ))}
-          </div>
+          {availableTables.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8l-4 4m0 0l-4-4m4 4V3" />
+                </svg>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400">Tidak ada meja tersedia</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Silakan buat meja terlebih dahulu di halaman Tables</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {availableTables.map((table) => (
+                <button
+                  key={table.id}
+                  onClick={() => {
+                    setSelectedTable(table);
+                    setShowTableSelector(false);
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                    table.status === "kosong"
+                      ? "border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500"
+                      : "border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 opacity-60 cursor-not-allowed"
+                  }`}
+                  disabled={table.status !== "kosong"}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-gray-800 dark:text-white">{table.name}</h3>
+                    <div className={`w-3 h-3 rounded-full ${
+                      table.status === "kosong" ? "bg-green-500" : "bg-red-500"
+                    }`}></div>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Kapasitas: {table.capacity} orang
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    {table.status === "kosong" ? "Tersedia" : "Terisi"}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
-        {availableTables.filter(t => t.status === "kosong").length === 0 && (
+        {availableTables.filter(t => t.status === "kosong").length === 0 && availableTables.length > 0 && (
           <div className="p-6 text-center border-t border-gray-200 dark:border-gray-700">
             <div className="text-gray-500 dark:text-gray-400 mb-2">
               <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,6 +362,9 @@ export default function Orders() {
                   </svg>
                 </button>
               </div>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                Kapasitas: {selectedTable.capacity} orang
+              </p>
             </div>
           ) : (
             <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-xl border border-yellow-200 dark:border-yellow-600 transition-colors duration-300">
@@ -274,44 +413,69 @@ export default function Orders() {
 
       {/* Enhanced Menu List */}
       <div className="max-w-6xl mx-auto mb-96 md:mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredMenus.map((menu) => (
-            <div
-              key={menu.id}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden"
-            >
-              <div className="relative">
-                <img
-                  src={menu.image}
-                  alt={menu.name}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="absolute top-3 right-3 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full px-2 py-1">
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{menu.category.label}</span>
-                </div>
-              </div>
-              <div className="p-5 flex flex-col justify-between flex-grow">
-                <div className="mb-4">
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2 line-clamp-2">{menu.name}</h3>
-                  <div className="flex items-center justify-between">
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      Rp {parseInt(menu.price).toLocaleString()}
-                    </p>
+        {filteredMenus.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center">
+              <FiShoppingCart className="w-12 h-12 text-gray-400 dark:text-gray-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Tidak ada menu ditemukan
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+              {menus.length === 0 
+                ? "Belum ada menu yang tersedia. Silakan tambahkan menu terlebih dahulu."
+                : "Coba ubah pencarian atau filter kategori untuk menemukan menu yang Anda inginkan."
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredMenus.map((menu) => (
+              <div
+                key={menu.id}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden"
+              >
+                <div className="relative">
+                  <img
+                    src={getImageSrc(menu.image)}
+                    alt={menu.name}
+                    className="w-full h-48 object-cover"
+                    onError={(e) => {
+                      e.target.src = 'https://via.placeholder.com/300x200?text=No+Image';
+                    }}
+                  />
+                  <div className="absolute top-3 right-3 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full px-2 py-1">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {menu.category?.label || 'Uncategorized'}
+                    </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedMenu(menu);
-                    setShowModal(true);
-                  }}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl py-3 font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
-                >
-                  + Tambah ke Pesanan
-                </button>
+                <div className="p-5 flex flex-col justify-between flex-grow">
+                  <div className="mb-4">
+                    <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2 line-clamp-2">{menu.name}</h3>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2">
+                      {menu.description}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        Rp {parseInt(menu.price).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedMenu(menu);
+                      setShowModal(true);
+                    }}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl py-3 font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
+                  >
+                    + Tambah ke Pesanan
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Enhanced Order Summary */}
@@ -400,14 +564,14 @@ export default function Orders() {
           </div>
           <button
             onClick={handleCheckout}
-            disabled={orderItems.length === 0}
+            disabled={orderItems.length === 0 || loading}
             className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
-              orderItems.length === 0
+              orderItems.length === 0 || loading
                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
             }`}
           >
-            {orderItems.length === 0 ? 'Pilih Menu Terlebih Dahulu' : '🛒 Lanjut ke Pembayaran'}
+            {loading ? '🔄 Memproses...' : orderItems.length === 0 ? 'Pilih Menu Terlebih Dahulu' : '🛒 Lanjut ke Pembayaran'}
           </button>
         </div>
       </div>
@@ -419,9 +583,12 @@ export default function Orders() {
             {/* Modal Header with Image */}
             <div className="relative h-48">
               <img
-                src={selectedMenu.image}
+                src={getImageSrc(selectedMenu.image)}
                 alt={selectedMenu.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = 'https://via.placeholder.com/400x200?text=No+Image';
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
               <button
@@ -491,76 +658,6 @@ export default function Orders() {
                   Tambah ke Pesanan - Rp {(selectedMenu.price * quantity).toLocaleString()}
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Table Selector Modal */}
-      {showTableSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden transition-colors duration-300">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white">Pilih Meja</h3>
-                {selectedTable && (
-                  <button
-                    onClick={() => setShowTableSelector(false)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  >
-                    <FiX className="w-6 h-6" />
-                  </button>
-                )}
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">Pilih meja untuk melanjutkan pemesanan</p>
-            </div>
-            
-            <div className="p-6 max-h-96 overflow-y-auto">
-              {availableTables.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8l-4 4m0 0l-4-4m4 4V3" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-500 dark:text-gray-400">Tidak ada meja tersedia</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {availableTables.map((table) => (
-                    <button
-                      key={table.id}
-                      onClick={() => {
-                        setSelectedTable(table);
-                        setShowTableSelector(false);
-                      }}
-                      className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
-                        table.status === 'kosong'
-                          ? 'border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500'
-                          : 'border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 cursor-not-allowed opacity-60'
-                      }`}
-                      disabled={table.status !== 'kosong'}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-gray-800 dark:text-white">{table.name}</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">Kapasitas: {table.capacity} orang</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            table.status === 'kosong' ? 'bg-green-500' : 'bg-red-500'
-                          }`}></div>
-                          <span className={`text-sm font-medium ${
-                            table.status === 'kosong' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
-                          }`}>
-                            {table.status === 'kosong' ? 'Tersedia' : 'Terisi'}
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>

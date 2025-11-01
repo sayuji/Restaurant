@@ -18,6 +18,7 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
 import { useTheme } from "../context/ThemeContext";
+import { tablesAPI } from '../services/api';
 
 export default function Tables() {
   const { theme } = useTheme();
@@ -28,42 +29,33 @@ export default function Tables() {
   const [form, setForm] = useState({ name: "", status: "kosong", capacity: 4 });
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [viewMode, setViewMode] = useState("grid");
   const [selectedTables, setSelectedTables] = useState(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // 🔹 Load tables from localStorage
+  // 🔥 LOAD TABLES DARI DATABASE - SAMA PATTERN DENGAN MENU.JSX
   useEffect(() => {
-    const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
-    if (savedTables.length > 0) {
-      setTables(savedTables);
-    } else {
-      const defaultTables = [
-        { id: 1, name: "Meja 1", status: "kosong", capacity: 4 },
-        { id: 2, name: "Meja 2", status: "terisi", capacity: 6 },
-        { id: 3, name: "Meja VIP", status: "kosong", capacity: 8 },
-        { id: 4, name: "Meja 4", status: "terisi", capacity: 2 },
-        { id: 5, name: "Meja 5", status: "kosong", capacity: 4 },
-        { id: 6, name: "Meja 6", status: "kosong", capacity: 6 },
-      ];
-      setTables(defaultTables);
-      localStorage.setItem("tables", JSON.stringify(defaultTables));
-    }
+    loadTablesFromBackend();
   }, []);
 
-  // 🔹 Save tables to localStorage
-  useEffect(() => {
-    if (tables.length > 0) {
-      localStorage.setItem("tables", JSON.stringify(tables));
+  const loadTablesFromBackend = async () => {
+    try {
+      console.log('🔄 Loading tables dari database...');
+      const tablesData = await tablesAPI.getAll();
+      setTables(tablesData);
+      console.log('✅ Tables loaded:', tablesData.length);
+    } catch (error) {
+      console.error('❌ Gagal memuat tables dari backend:', error);
+      // Fallback ke localStorage
+      try {
+        const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
+        setTables(savedTables);
+        console.log('🔄 Using localStorage fallback for tables');
+      } catch (localError) {
+        console.error('❌ Juga gagal baca localStorage:', localError);
+      }
     }
-  }, [tables]);
-
-  // Dynamic base URL function
-  const getBaseUrl = () => {
-    if (typeof window !== 'undefined') {
-      return window.location.protocol + '//' + window.location.host;
-    }
-    return 'http://localhost:3001';
   };
 
   // Filter tables
@@ -102,47 +94,128 @@ export default function Tables() {
     setForm({ name: "", status: "kosong", capacity: 4 });
   };
 
-  const handleAddTable = () => {
+  // 🔥 ADD TABLE KE DATABASE
+  const handleAddTable = async () => {
     if (!form.name.trim()) {
       alert("Isi nama meja dulu!");
       return;
     }
+
+    setLoading(true);
     
-    const newTable = {
-      id: tables.length ? Math.max(...tables.map(t => t.id)) + 1 : 1,
-      name: form.name,
-      status: form.status,
-      capacity: parseInt(form.capacity) || 4,
-      createdAt: new Date().toISOString()
-    };
-    
-    setTables([...tables, newTable]);
-    closeModal();
+    try {
+      const newTableData = {
+        name: form.name,
+        capacity: parseInt(form.capacity) || 4,
+        status: form.status
+      };
+
+      console.log('➕ Creating table in database:', newTableData);
+      
+      // ✅ CREATE TABLE DI DATABASE
+      const result = await tablesAPI.create(newTableData);
+      
+      // Add the new table to state
+      setTables([...tables, result]);
+      console.log('✅ Table created successfully:', result.id);
+      
+      closeModal();
+    } catch (error) {
+      console.error('❌ Error creating table:', error);
+      alert('Gagal membuat meja. Silakan coba lagi.');
+      
+      // Fallback ke localStorage
+      const newTable = {
+        id: tables.length ? Math.max(...tables.map(t => t.id)) + 1 : 1,
+        name: form.name,
+        status: form.status,
+        capacity: parseInt(form.capacity) || 4,
+        createdAt: new Date().toISOString()
+      };
+      
+      setTables([...tables, newTable]);
+      localStorage.setItem("tables", JSON.stringify([...tables, newTable]));
+      closeModal();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditTable = () => {
+  // 🔥 EDIT TABLE DI DATABASE
+  const handleEditTable = async () => {
     if (!form.name.trim()) {
       alert("Nama meja tidak boleh kosong!");
       return;
     }
+
+    setLoading(true);
     
-    setTables(
-      tables.map((t) =>
-        t.id === modalData.id ? { 
-          ...t, 
-          name: form.name, 
-          status: form.status, 
-          capacity: parseInt(form.capacity) || 4,
-          updatedAt: new Date().toISOString()
-        } : t
-      )
-    );
-    closeModal();
+    try {
+      const updatedTableData = {
+        name: form.name,
+        status: form.status,
+        capacity: parseInt(form.capacity) || 4
+      };
+
+      console.log('✏️ Updating table in database:', modalData.id, updatedTableData);
+      
+      // ✅ UPDATE TABLE DI DATABASE
+      const result = await tablesAPI.update(modalData.id, updatedTableData);
+      
+      // Update table in state
+      setTables(tables.map((t) => t.id === modalData.id ? result : t));
+      console.log('✅ Table updated successfully:', modalData.id);
+      
+      closeModal();
+    } catch (error) {
+      console.error('❌ Error updating table:', error);
+      alert('Gagal mengupdate meja. Silakan coba lagi.');
+      
+      // Fallback ke localStorage
+      setTables(
+        tables.map((t) =>
+          t.id === modalData.id ? { 
+            ...t, 
+            name: form.name, 
+            status: form.status, 
+            capacity: parseInt(form.capacity) || 4,
+            updatedAt: new Date().toISOString()
+          } : t
+        )
+      );
+      localStorage.setItem("tables", JSON.stringify(tables));
+      closeModal();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteTable = () => {
-    setTables(tables.filter((t) => t.id !== modalData.id));
-    closeModal();
+  // 🔥 DELETE TABLE DI DATABASE
+  const handleDeleteTable = async () => {
+    setLoading(true);
+    
+    try {
+      console.log('🗑️ Deleting table from database:', modalData.id);
+      
+      // ✅ DELETE TABLE DI DATABASE
+      await tablesAPI.delete(modalData.id);
+      
+      // Remove table from state
+      setTables(tables.filter((t) => t.id !== modalData.id));
+      console.log('✅ Table deleted successfully:', modalData.id);
+      
+      closeModal();
+    } catch (error) {
+      console.error('❌ Error deleting table:', error);
+      alert('Gagal menghapus meja. Silakan coba lagi.');
+      
+      // Fallback ke localStorage
+      setTables(tables.filter((t) => t.id !== modalData.id));
+      localStorage.setItem("tables", JSON.stringify(tables.filter((t) => t.id !== modalData.id)));
+      closeModal();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleBulkDelete = () => {
@@ -196,6 +269,14 @@ export default function Tables() {
       downloadLink.click();
       document.body.removeChild(downloadLink);
     }
+  };
+
+  // Dynamic base URL function
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.protocol + '//' + window.location.host;
+    }
+    return 'http://localhost:3000';
   };
 
   const TableCard = ({ table, index }) => (
@@ -686,9 +767,14 @@ export default function Tables() {
                     </button>
                     <button
                       onClick={handleDeleteTable}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-semibold transition-colors duration-200"
+                      disabled={loading}
+                      className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-colors duration-200 ${
+                        loading
+                          ? 'bg-red-400 cursor-not-allowed'
+                          : 'bg-red-600 hover:bg-red-700'
+                      } text-white`}
                     >
-                      Hapus
+                      {loading ? '🔄 Menghapus...' : 'Hapus'}
                     </button>
                   </div>
                 </div>
@@ -795,9 +881,14 @@ export default function Tables() {
                       <button
                         type="button"
                         onClick={modalData.id ? handleEditTable : handleAddTable}
-                        className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-semibold"
+                        disabled={loading}
+                        className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                          loading
+                            ? 'bg-blue-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+                        } text-white`}
                       >
-                        {modalData.id ? "Simpan Perubahan" : "Tambah Meja"}
+                        {loading ? '🔄 Memproses...' : (modalData.id ? "Simpan Perubahan" : "Tambah Meja")}
                       </button>
                     </div>
                   </form>
