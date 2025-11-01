@@ -42,7 +42,7 @@ export default function ListOrders() {
   // Filter and sort orders
   const filteredOrders = orders
     .filter(order => {
-      const matchesSearch = order.namaMeja.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch = order?.namaMeja?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.items.some(item => 
                             item.nama.toLowerCase().includes(searchTerm.toLowerCase())
                           );

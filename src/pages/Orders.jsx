@@ -46,7 +46,8 @@ export default function Orders() {
   const loadTablesFromBackend = async () => {
     try {
       console.log('🔄 Loading tables dari database...');
-      const tablesData = await tablesAPI.getAll();
+      const response = await tablesAPI.getAll();
+      const tablesData = response.data || [];
       setAvailableTables(tablesData);
       console.log('✅ Tables loaded:', tablesData.length);
       

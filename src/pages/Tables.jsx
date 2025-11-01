@@ -42,7 +42,8 @@ export default function Tables() {
   const loadTablesFromBackend = async () => {
     try {
       console.log('🔄 Loading tables dari database...');
-      const tablesData = await tablesAPI.getAll();
+      const response = await tablesAPI.getAll();
+      const tablesData = response.data || [];
       setTables(tablesData);
       console.log('✅ Tables loaded:', tablesData.length);
     } catch (error) {
@@ -61,7 +62,7 @@ export default function Tables() {
   // Filter tables
   const filteredTables = tables.filter(table => {
     const matchesStatus = statusFilter === "all" || table.status === statusFilter;
-    const matchesSearch = table.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = table?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
