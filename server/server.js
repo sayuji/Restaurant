@@ -292,8 +292,8 @@ app.post('/api/orders', async (req, res) => {
 
     // Insert order
     const orderResult = await client.query(
-      'INSERT INTO orders (table_id, table_name, total_price) VALUES ($1, $2, $3) RETURNING *',
-      [tableId, tableName, totalHarga]
+      'INSERT INTO orders (table_id, table_name, items, total_price) VALUES ($1, $2, $3, $4) RETURNING *',
+      [tableId, tableName, JSON.stringify(items), totalHarga]
     );
     
     const orderId = orderResult.rows[0].id;
@@ -330,65 +330,10 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// 🔥 TABLES ROUTES - BARU DITAMBAHIN  
+// 🔥 TABLES ROUTES - COMPREHENSIVE CRUD OPERATIONS
 // ==========================================
-
-// GET all tables
-app.get('/api/tables', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM restaurant_tables ORDER BY name');
-    console.log('📦 GET /api/tables - Total:', result.rows.length);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('❌ Error fetching tables:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// UPDATE table status
-app.put('/api/tables/:id/status', async (req, res) => {
-  try {
-    const tableId = parseInt(req.params.id);
-    const { status } = req.body;
-    
-    console.log('🔄 PUT /api/tables/' + tableId + '/status - Status:', status);
-
-    const result = await pool.query(
-      'UPDATE restaurant_tables SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [status, tableId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Table not found' });
-    }
-
-    console.log('✅ Table status updated - ID:', tableId, 'Status:', status);
-    res.json({ success: true, table: result.rows[0] });
-  } catch (error) {
-    console.error('❌ Error updating table status:', error);
-    res.status(500).json({ error: 'Gagal update status meja' });
-  }
-});
-
-// CREATE new table (optional - untuk tambah meja baru)
-app.post('/api/tables', async (req, res) => {
-  try {
-    const { name, capacity, status = 'kosong' } = req.body;
-    
-    console.log('➕ POST /api/tables - Data:', { name, capacity, status });
-
-    const result = await pool.query(
-      'INSERT INTO restaurant_tables (name, capacity, status) VALUES ($1, $2, $3) RETURNING *',
-      [name, capacity, status]
-    );
-
-    console.log('✅ Table created - ID:', result.rows[0].id);
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('❌ Error creating table:', error);
-    res.status(500).json({ error: 'Gagal membuat meja' });
-  }
-});
+const tablesRouter = require('./routes/tables');
+app.use('/api/tables', tablesRouter);
 
 app.listen(PORT, () => {
   console.log(`🍔 Backend dengan File Upload jalan di http://localhost:${PORT}`);
