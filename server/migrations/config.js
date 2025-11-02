@@ -1,3 +1,4 @@
+require('dotenv').config();
 const path = require('path');
 
 module.exports = {
@@ -5,9 +6,9 @@ module.exports = {
   database: {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'resto',
+    database: process.env.DB_NAME || 'restomaster_db',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'root', // Updated to match existing config
+    password: process.env.DB_PASSWORD || '050606',
   },
 
   // Migration settings
