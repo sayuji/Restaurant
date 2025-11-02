@@ -139,10 +139,10 @@ export default function Login() {
   };
 
   const demoUsers = [
-    { username: "admin", password: "12345", role: "admin", description: "Full Access" },
-    { username: "manager", password: "12345", role: "manager", description: "Management" },
-    { username: "kitchen", password: "12345", role: "kitchen", description: "Kitchen Staff" },
-    { username: "cashier", password: "12345", role: "cashier", description: "Cashier" }
+    { username: "admin", password: "password", role: "admin", description: "Full Access" },
+    { username: "manager", password: "password", role: "manager", description: "Management" },
+    { username: "kitchen", password: "password", role: "kitchen", description: "Kitchen Staff" },
+    { username: "cashier", password: "password", role: "cashier", description: "Cashier" }
   ];
 
   const fillDemoCredentials = (user) => {
@@ -335,7 +335,7 @@ export default function Login() {
                   ))}
                 </div>
                 <p className="text-xs text-gray-500 text-center mt-2">
-                  Password: <span className="text-green-400">12345</span> untuk semua user
+                  Password: <span className="text-green-400">password</span> untuk semua user
                 </p>
               </motion.div>
 
