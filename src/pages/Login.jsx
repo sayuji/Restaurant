@@ -10,9 +10,11 @@ import {
   Coffee, 
   Utensils,
   ChefHat,
-  Store
+  Store,
+  Loader
 } from "lucide-react";
 import Swal from "sweetalert2";
+import { authAPI } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,68 +25,130 @@ export default function Login() {
   const [shake, setShake] = useState(false);
 
   useEffect(() => {
-    const user = localStorage.getItem("user");
-    if (user) navigate("/");
+    const token = localStorage.getItem("token");
+    if (token) {
+      // Verify token is still valid
+      authAPI.getProfile()
+        .then(() => navigate("/"))
+        .catch(() => {
+          // Token invalid, clear and stay on login page
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+        });
+    }
   }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    if (!username.trim() || !password.trim()) {
+      await Swal.fire({
+        icon: "warning",
+        title: "Data tidak lengkap!",
+        text: "Harap isi username dan password",
+        background: '#1f2937',
+        color: 'white',
+        confirmButtonColor: '#f59e0b'
+      });
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (username === "admin" && password === "12345") {
-      localStorage.setItem("user", JSON.stringify({ 
-        username,
-        loginTime: new Date().toISOString()
-      }));
+    try {
+      console.log('🔐 Attempting login for user:', username);
       
-      await Swal.fire({
-        icon: "success",
-        title: "Login Berhasil! 🎉",
-        text: `Selamat datang kembali, ${username}!`,
-        timer: 2000,
-        showConfirmButton: false,
-        background: '#1f2937',
-        color: 'white'
-      });
+      const response = await authAPI.login({ username, password });
       
-      navigate("/");
-    } else {
+      if (response.success) {
+        // Save token and user data
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.user));
+        
+        await Swal.fire({
+          icon: "success",
+          title: "Login Berhasil! 🎉",
+          text: `Selamat datang, ${response.user.fullName || response.user.username}!`,
+          timer: 2000,
+          showConfirmButton: false,
+          background: '#1f2937',
+          color: 'white'
+        });
+        
+        console.log('✅ Login successful, redirecting...');
+        navigate("/");
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      
       setShake(true);
       setTimeout(() => setShake(false), 500);
+
+      let errorMessage = "Terjadi kesalahan saat login";
+      
+      if (error.message.includes('401')) {
+        errorMessage = "Username atau password salah!";
+      } else if (error.message.includes('500')) {
+        errorMessage = "Server error. Silakan coba lagi.";
+      } else if (error.message.includes('Network')) {
+        errorMessage = "Koneksi gagal. Periksa koneksi internet Anda.";
+      } else if (error.message.includes('Session expired')) {
+        errorMessage = "Sesi telah berakhir. Silakan login kembali.";
+      }
       
       await Swal.fire({
         icon: "error",
         title: "Login Gagal!",
-        text: "Username atau password salah!",
+        text: errorMessage,
         background: '#1f2937',
         color: 'white',
         confirmButtonColor: '#ef4444'
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const features = [
     {
       icon: <Utensils className="w-6 h-6" />,
       title: "Menu Management",
-      description: "Kelola menu dengan mudah"
+      description: "Kelola menu dengan mudah dan upload gambar"
     },
     {
       icon: <Store className="w-6 h-6" />,
       title: "Table Management", 
-      description: "Kelola meja dan QR codes"
+      description: "Kelola meja dan generate QR codes otomatis"
     },
     {
       icon: <ChefHat className="w-6 h-6" />,
-      title: "Order Tracking",
-      description: "Lacak pesanan real-time"
+      title: "Real-time Orders",
+      description: "Lacak pesanan secara real-time dari kitchen"
     }
   ];
+
+  const getRoleBadge = (role) => {
+    const badges = {
+      admin: "bg-red-500 text-white",
+      manager: "bg-blue-500 text-white", 
+      kitchen: "bg-orange-500 text-white",
+      cashier: "bg-green-500 text-white",
+      staff: "bg-gray-500 text-white"
+    };
+    return badges[role] || "bg-gray-500 text-white";
+  };
+
+  const demoUsers = [
+    { username: "admin", password: "12345", role: "admin", description: "Full Access" },
+    { username: "manager", password: "12345", role: "manager", description: "Management" },
+    { username: "kitchen", password: "12345", role: "kitchen", description: "Kitchen Staff" },
+    { username: "cashier", password: "12345", role: "cashier", description: "Cashier" }
+  ];
+
+  const fillDemoCredentials = (user) => {
+    setUsername(user.username);
+    setPassword(user.password);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
@@ -200,6 +264,7 @@ export default function Login() {
                     className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter your username"
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -218,28 +283,59 @@ export default function Login() {
                     className="w-full pl-10 pr-12 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter your password"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                    disabled={isLoading}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors disabled:opacity-50"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Demo Credentials */}
+              {/* Demo Users */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
                 className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/50"
               >
-                <p className="text-sm text-gray-400 text-center">
-                  <strong>Demo Credentials:</strong><br />
-                  Username: <span className="text-green-400">admin</span><br />
-                  Password: <span className="text-green-400">12345</span>
+                <p className="text-sm text-gray-400 text-center mb-3">
+                  <strong>Demo Users:</strong>
+                </p>
+                <div className="space-y-2">
+                  {demoUsers.map((user, index) => (
+                    <motion.button
+                      key={user.username}
+                      type="button"
+                      onClick={() => fillDemoCredentials(user)}
+                      disabled={isLoading}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.6 + index * 0.1 }}
+                      whileHover={{ scale: isLoading ? 1 : 1.02 }}
+                      whileTap={{ scale: isLoading ? 1 : 0.98 }}
+                      className="w-full p-2 bg-gray-600/50 hover:bg-gray-600/70 rounded-lg transition-all duration-200 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-medium">
+                          {user.username}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs ${getRoleBadge(user.role)}`}>
+                          {user.role}
+                        </span>
+                      </div>
+                      <span className="text-gray-400 text-xs">
+                        {user.description}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Password: <span className="text-green-400">12345</span> untuk semua user
                 </p>
               </motion.div>
 
@@ -260,7 +356,7 @@ export default function Login() {
                       exit={{ opacity: 0 }}
                       className="flex items-center gap-2"
                     >
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <Loader className="w-5 h-5 animate-spin" />
                       Signing in...
                     </motion.div>
                   ) : (

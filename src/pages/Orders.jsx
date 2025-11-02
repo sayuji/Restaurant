@@ -194,13 +194,12 @@ export default function Orders() {
       return;
     }
 
-    if (loading) return;
-    setLoading(true);
-
+    // Siapkan data order tanpa simpan ke database
     const orderData = {
       tableId: selectedTable.id,
       tableName: selectedTable.name,
       items: orderItems.map((item) => ({
+        id: item.id, // tambahkan ID menu
         nama: item.name,
         qty: item.quantity,
         harga: item.price,
@@ -209,53 +208,12 @@ export default function Orders() {
       totalHarga: totalPrice,
     };
 
-    try {
-      console.log('🔄 Creating order in database...', orderData);
-      
-      // ✅ CREATE ORDER DI DATABASE - SAMA PATTERN DENGAN MENU.JSX
-      const response = await ordersAPI.create(orderData);
-      
-      if (response.success) {
-        console.log('✅ Order created successfully:', response.orderId);
-        
-        // ✅ UPDATE TABLE STATUS DI DATABASE
-        await tablesAPI.updateStatus(selectedTable.id, 'terisi');
-        console.log('✅ Table status updated to "terisi"');
-        
-        // Update local state
-        const updatedTables = availableTables.map((t) =>
-          t.id === selectedTable.id ? { ...t, status: "terisi" } : t
-        );
-        setAvailableTables(updatedTables);
-        
-        // Save to localStorage sebagai backup
-        localStorage.setItem("tables", JSON.stringify(updatedTables));
-        
-        // Navigate ke checkout dengan data order
-        navigate("/checkout", { 
-          state: { 
-            ...orderData, 
-            orderId: response.orderId 
-          } 
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error creating order:', error);
-      alert('Gagal membuat order. Silakan coba lagi.');
-      
-      // Fallback: save to localStorage
-      console.log('🔄 Using localStorage fallback for order...');
-      const tables = JSON.parse(localStorage.getItem("tables")) || [];
-      const updatedTables = tables.map((t) =>
-        t.id === selectedTable.id ? { ...t, status: "terisi" } : t
-      );
-      localStorage.setItem("tables", JSON.stringify(updatedTables));
-      localStorage.setItem("orderData", JSON.stringify(orderData));
-      
-      navigate("/checkout", { state: orderData });
-    } finally {
-      setLoading(false);
-    }
+    console.log('🔄 Preparing order data for checkout:', orderData);
+    
+    // Navigate ke checkout dengan data order
+    navigate("/checkout", { 
+      state: orderData 
+    });
   };
 
   // 🔥 TABLE SELECTOR COMPONENT

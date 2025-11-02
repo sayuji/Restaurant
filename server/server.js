@@ -3,11 +3,14 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const pool = require('./config/database');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'restaurant_jwt_secret_2024';
 
 // Setup Multer untuk file upload
 const storage = multer.diskStorage({
@@ -58,11 +61,140 @@ app.get('/api', (req, res) => {
   });
 });
 
-// POSTGRESQL ROUTES - MENU (UDAH JALAN)
+// ==========================================
+// 🔐 AUTHENTICATION MIDDLEWARE & ROUTES
+// ==========================================
+
+// 🔐 VERIFY TOKEN MIDDLEWARE
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Token akses diperlukan' 
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Token tidak valid' 
+      });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// 🔐 LOGIN ROUTE
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    console.log('🔐 Login attempt for user:', username);
+
+    // Find user in database
+    const result = await pool.query(
+      'SELECT * FROM users WHERE username = $1 AND is_active = true',
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Username atau password salah' 
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Username atau password salah' 
+      });
+    }
+
+    // Update last login
+    await pool.query(
+      'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+      [user.id]
+    );
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        username: user.username, 
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    console.log('✅ Login successful for user:', username);
+    
+    res.json({
+      success: true,
+      message: 'Login berhasil',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        fullName: user.full_name,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan saat login' 
+    });
+  }
+});
+
+// 🔐 GET USER PROFILE
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, username, role, full_name, email, last_login FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User tidak ditemukan' 
+      });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Get user profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Terjadi kesalahan' 
+    });
+  }
+});
+
+// ==========================================
+// 📋 POSTGRESQL ROUTES - MENU (PROTECTED)
 // ==========================================
 
 // GET all menus
-app.get('/api/menu', async (req, res) => {
+app.get('/api/menu', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM menus ORDER BY created_at DESC');
     
@@ -83,7 +215,7 @@ app.get('/api/menu', async (req, res) => {
 });
 
 // POST create new menu
-app.post('/api/menu', upload.single('image'), async (req, res) => {
+app.post('/api/menu', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { name, price, description, category } = req.body;
     
@@ -138,7 +270,7 @@ app.post('/api/menu', upload.single('image'), async (req, res) => {
 });
 
 // PUT update menu
-app.put('/api/menu/:id', upload.single('image'), async (req, res) => {
+app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
     const { name, price, description, category } = req.body;
@@ -217,7 +349,7 @@ app.put('/api/menu/:id', upload.single('image'), async (req, res) => {
 });
 
 // DELETE menu
-app.delete('/api/menu/:id', async (req, res) => {
+app.delete('/api/menu/:id', authenticateToken, async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
     console.log('🗑️ DELETE /api/menu/' + menuId);
@@ -247,28 +379,14 @@ app.delete('/api/menu/:id', async (req, res) => {
   }
 });
 
-// 🔥 ORDERS ROUTES - BARU DITAMBAHIN
+// ==========================================
+// 🛒 ORDERS ROUTES - LENGKAP DENGAN SEMUA ENDPOINTS
 // ==========================================
 
 // GET all orders
-app.get('/api/orders', async (req, res) => {
+app.get('/api/orders', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT o.*, 
-             json_agg(
-               json_build_object(
-                 'id', oi.id,
-                 'menu_name', oi.menu_name,
-                 'quantity', oi.quantity,
-                 'price', oi.price,
-                 'notes', oi.notes
-               )
-             ) as items
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      GROUP BY o.id
-      ORDER BY o.created_at DESC
-    `);
+    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
     console.log('📦 GET /api/orders - Total:', result.rows.length);
     res.json(result.rows);
   } catch (error) {
@@ -277,68 +395,141 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// CREATE new order
-app.post('/api/orders', async (req, res) => {
-  const client = await pool.connect();
-  
+// GET order by ID
+app.get('/api/orders/:id', authenticateToken, async (req, res) => {
   try {
-    await client.query('BEGIN');
+    const orderId = parseInt(req.params.id);
+    const result = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
     
-    const { tableId, tableName, items, totalHarga } = req.body;
-    
-    console.log('➕ POST /api/orders - Data received:', {
-      tableId, tableName, totalHarga, items_count: items.length
-    });
-
-    // Insert order
-    const orderResult = await client.query(
-      'INSERT INTO orders (table_id, table_name, items, total_price) VALUES ($1, $2, $3, $4) RETURNING *',
-      [tableId, tableName, JSON.stringify(items), totalHarga]
-    );
-    
-    const orderId = orderResult.rows[0].id;
-    
-    // Insert order items
-    for (const item of items) {
-      await client.query(
-        'INSERT INTO order_items (order_id, menu_name, quantity, price, notes) VALUES ($1, $2, $3, $4, $5)',
-        [orderId, item.nama, item.qty, item.harga, item.catatan || '']
-      );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
     }
     
-    // Update table status
-    await client.query(
-      'UPDATE restaurant_tables SET status = $1 WHERE id = $2',
-      ['terisi', tableId]
-    );
-    
-    await client.query('COMMIT');
-    
-    console.log('✅ Order created - ID:', orderId);
-    res.status(201).json({ 
-      success: true, 
-      orderId,
-      message: 'Order berhasil dibuat' 
-    });
-    
+    res.json(result.rows[0]);
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error creating order:', error);
-    res.status(500).json({ error: 'Gagal membuat order' });
-  } finally {
-    client.release();
+    console.error('❌ Error fetching order:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// 🔥 TABLES ROUTES - COMPREHENSIVE CRUD OPERATIONS
+// CREATE new order
+app.post('/api/orders', authenticateToken, async (req, res) => {
+  try {
+    const { tableId, tableName, items, totalHarga, paymentMethod = 'cash' } = req.body;
+    
+    console.log('➕ POST /api/orders - Data received:', {
+      tableId, tableName, totalHarga, paymentMethod, items_count: items.length
+    });
+
+    const result = await pool.query(
+      `INSERT INTO orders (table_id, table_name, items, total_price, payment_method) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [tableId, tableName, JSON.stringify(items), totalHarga, paymentMethod]
+    );
+
+    console.log('✅ Order created - ID:', result.rows[0].id);
+    res.status(201).json({ 
+      success: true, 
+      orderId: result.rows[0].id,
+      message: 'Order berhasil dibuat' 
+    });
+  } catch (error) {
+    console.error('❌ Error creating order:', error);
+    res.status(500).json({ error: 'Gagal membuat order' });
+  }
+});
+
+// UPDATE ORDER STATUS
+app.put('/api/orders/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { status } = req.body;
+    
+    console.log('✏️ UPDATE /api/orders/' + orderId + '/status - Status:', status);
+    
+    const result = await pool.query(
+      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [status, orderId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    console.log('✅ Order status updated - ID:', orderId, 'Status:', status);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating order status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// UPDATE ORDER (FULL UPDATE)
+app.put('/api/orders/:id', authenticateToken, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { tableId, tableName, items, totalHarga, status } = req.body;
+    
+    console.log('✏️ PUT /api/orders/' + orderId, { 
+      tableId, tableName, totalHarga, status, items_count: items.length 
+    });
+    
+    const result = await pool.query(
+      `UPDATE orders 
+       SET table_id = $1, table_name = $2, items = $3, total_price = $4, status = $5,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6 
+       RETURNING *`,
+      [tableId, tableName, JSON.stringify(items), totalHarga, status, orderId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    console.log('✅ Order updated - ID:', orderId);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE ORDER
+app.delete('/api/orders/:id', authenticateToken, async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    console.log('🗑️ DELETE /api/orders/' + orderId);
+    
+    const result = await pool.query('DELETE FROM orders WHERE id = $1 RETURNING *', [orderId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    console.log('✅ Order deleted - ID:', orderId);
+    res.json({ message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ==========================================
+// 🏪 TABLES ROUTES - COMPREHENSIVE CRUD OPERATIONS
 // ==========================================
 const tablesRouter = require('./routes/tables');
 app.use('/api/tables', tablesRouter);
 
 app.listen(PORT, () => {
-  console.log(`🍔 Backend dengan File Upload jalan di http://localhost:${PORT}`);
+  console.log(`🍔 Backend dengan File Upload & Authentication jalan di http://localhost:${PORT}`);
   console.log(`📱 Database: PostgreSQL - restaurant_db`);
+  console.log(`🔐 JWT Secret: ${JWT_SECRET}`);
   console.log(`🖼️ File Upload: READY!`);
   console.log(`📁 Upload folder: /uploads/menu-images/`);
-  console.log(`🔥 NEW: Orders & Tables API READY!`);
+  console.log(`🔥 AUTH API: READY! (POST /api/auth/login, GET /api/auth/me)`);
+  console.log(`🛒 ORDERS API: FULL CRUD READY!`);
+  console.log(`📋 MENU API: FULL CRUD READY!`);
+  console.log(`🏪 TABLES API: FULL CRUD READY!`);
 });

@@ -8,7 +8,7 @@ import Checkout from "./pages/Checkout";
 import ListOrders from "./pages/ListOrders";
 import Tables from "./pages/Tables";
 import Settings from "./pages/Settings";
-import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedRoute, { AdminRoute } from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
 import HistoryOrders from "./pages/HistoryOrders";
 import TitleManager from "./components/TitleManager";
@@ -28,8 +28,12 @@ export default function App() {
       <TitleManager />
 
       <Routes>
+        {/* Public Route */}
         <Route path="/login" element={<Login />} />
 
+        {/* Protected Routes dengan Role-based Access */}
+        
+        {/* Dashboard - Accessible by all authenticated users */}
         <Route
           path="/"
           element={
@@ -41,10 +45,11 @@ export default function App() {
           }
         />
 
+        {/* Menu Management - Admin & Manager only */}
         <Route
           path="/menu"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredAnyRole={['admin', 'manager']}>
               <MainLayout>
                 <Menu />
               </MainLayout>
@@ -52,6 +57,7 @@ export default function App() {
           }
         />
 
+        {/* Customer Orders - Accessible by all (for order taking) */}
         <Route
           path="/orders"
           element={
@@ -63,10 +69,11 @@ export default function App() {
           }
         />
 
+        {/* Checkout - Cashier & above */}
         <Route
           path="/checkout"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredAnyRole={['admin', 'manager', 'cashier']}>
               <MainLayout>
                 <Checkout />
               </MainLayout>
@@ -74,10 +81,11 @@ export default function App() {
           }
         />
 
+        {/* Kitchen Orders - Kitchen staff & above */}
         <Route
           path="/list-orders"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredAnyRole={['admin', 'manager', 'kitchen']}>
               <MainLayout>
                 <ListOrders />
               </MainLayout>
@@ -85,10 +93,11 @@ export default function App() {
           }
         />
 
+        {/* Table Management - Admin & Manager only */}
         <Route
           path="/tables"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredAnyRole={['admin', 'manager']}>
               <MainLayout>
                 <Tables />
               </MainLayout>
@@ -96,25 +105,40 @@ export default function App() {
           }
         />
 
+        {/* Settings - Admin only */}
         <Route
           path="/settings"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <MainLayout>
                 <Settings />
+              </MainLayout>
+            </AdminRoute>
+          }
+        />
+
+        {/* Order History - Manager & above */}
+        <Route
+          path="/history-orders"
+          element={
+            <ProtectedRoute requiredAnyRole={['admin', 'manager']}>
+              <MainLayout>
+                <HistoryOrders />
               </MainLayout>
             </ProtectedRoute>
           }
         />
 
+        {/* Fallback route - 404 */}
         <Route
-          path="/history-orders"
+          path="*"
           element={
-            <ProtectedRoute>
-              <MainLayout>
-                <HistoryOrders />
-              </MainLayout>
-            </ProtectedRoute>
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-4">404</h1>
+                <p className="text-gray-600 dark:text-gray-400">Page not found</p>
+              </div>
+            </div>
           }
         />
       </Routes>

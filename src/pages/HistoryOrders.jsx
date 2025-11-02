@@ -13,10 +13,12 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Loader
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTheme } from "../context/ThemeContext";
+import { ordersAPI } from '../services/api';
 
 export default function HistoryOrders() {
   const { theme } = useTheme();
@@ -28,16 +30,58 @@ export default function HistoryOrders() {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
+  // 🔥 LOAD HISTORY ORDERS DARI DATABASE
   useEffect(() => {
-    const fetchData = () => {
-      const stored = JSON.parse(localStorage.getItem("ordersDone")) || [];
-      setDoneOrders(stored);
-    };
-    fetchData();
-    const interval = setInterval(fetchData, 5000);
+    loadHistoryOrders();
+    
+    // Real-time polling setiap 10 detik
+    const interval = setInterval(loadHistoryOrders, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadHistoryOrders = async () => {
+    try {
+      console.log('🔄 Loading history orders dari database...');
+      const ordersData = await ordersAPI.getAll();
+      
+      // Filter hanya orders yang status completed/selesai
+      const completedOrders = ordersData
+        .filter(order => order.status === 'completed' || order.status === 'Selesai')
+        .map(order => ({
+          id: order.id,
+          tableId: order.table_id,
+          namaMeja: order.table_name,
+          items: order.items || [],
+          totalHarga: order.total_price,
+          status: 'Selesai',
+          createdAt: order.created_at,
+          completedAt: order.updated_at || order.created_at,
+          waktu: new Date(order.created_at).toLocaleTimeString("id-ID", { hour12: false }),
+          tanggal: new Date(order.created_at).toLocaleDateString("id-ID"),
+          paymentMethod: order.payment_method || 'cash'
+        }));
+      
+      setDoneOrders(completedOrders);
+      console.log('✅ History orders loaded:', completedOrders.length);
+    } catch (error) {
+      console.error('❌ Gagal memuat history orders dari database:', error);
+      toast.error('Gagal memuat data riwayat pesanan');
+      
+      // Fallback ke localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem("ordersDone")) || [];
+        setDoneOrders(stored);
+        console.log('🔄 Using localStorage fallback for history orders');
+      } catch (localError) {
+        console.error('❌ Juga gagal baca localStorage:', localError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter and sort orders
   const filteredOrders = doneOrders
@@ -45,7 +89,8 @@ export default function HistoryOrders() {
       const matchesSearch = order.namaMeja.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.tanggal.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           order.items.some(item => 
-                            item.nama.toLowerCase().includes(searchTerm.toLowerCase())
+                            item.nama?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.menu_name?.toLowerCase().includes(searchTerm.toLowerCase())
                           );
       
       const matchesDate = dateFilter === "all" || 
@@ -57,9 +102,9 @@ export default function HistoryOrders() {
     .sort((a, b) => {
       switch (sortBy) {
         case "newest":
-          return new Date(b.completedAt || b.id) - new Date(a.completedAt || a.id);
+          return new Date(b.completedAt || b.createdAt) - new Date(a.completedAt || a.createdAt);
         case "oldest":
-          return new Date(a.completedAt || a.id) - new Date(b.completedAt || b.id);
+          return new Date(a.completedAt || a.createdAt) - new Date(b.completedAt || b.createdAt);
         case "totalHigh":
           return b.totalHarga - a.totalHarga;
         case "totalLow":
@@ -84,25 +129,73 @@ export default function HistoryOrders() {
     return orderDate >= startOfWeek;
   };
 
-  const handleDelete = (id) => {
+  // 🔥 DELETE ORDER DARI DATABASE
+  const handleDelete = async (id) => {
     if (!window.confirm("Yakin hapus riwayat pesanan ini?")) return;
-    const updated = doneOrders.filter((o) => o.id !== id);
-    localStorage.setItem("ordersDone", JSON.stringify(updated));
-    setDoneOrders(updated);
-    toast.success("✅ Riwayat pesanan dihapus");
+    
+    setDeleting(true);
+    try {
+      console.log('🗑️ Deleting order from database:', id);
+      await ordersAPI.delete(id);
+      
+      // Update local state
+      const updated = doneOrders.filter((o) => o.id !== id);
+      setDoneOrders(updated);
+      
+      toast.success("✅ Riwayat pesanan dihapus");
+    } catch (error) {
+      console.error('❌ Error deleting order:', error);
+      toast.error('Gagal menghapus pesanan');
+      
+      // Fallback ke localStorage
+      const updated = doneOrders.filter((o) => o.id !== id);
+      localStorage.setItem("ordersDone", JSON.stringify(updated));
+      setDoneOrders(updated);
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const handleBulkDelete = () => {
+  // 🔥 BULK DELETE ORDERS DARI DATABASE
+  const handleBulkDelete = async () => {
     if (selectedOrders.size === 0) return;
     
     if (!window.confirm(`Yakin hapus ${selectedOrders.size} riwayat pesanan?`)) return;
     
-    const updated = doneOrders.filter((o) => !selectedOrders.has(o.id));
-    localStorage.setItem("ordersDone", JSON.stringify(updated));
-    setDoneOrders(updated);
-    setSelectedOrders(new Set());
-    setShowBulkActions(false);
-    toast.success(`✅ ${selectedOrders.size} riwayat pesanan dihapus`);
+    setDeleting(true);
+    try {
+      console.log('🗑️ Bulk deleting orders from database:', Array.from(selectedOrders));
+      
+      // Delete each order from database
+      const deletePromises = Array.from(selectedOrders).map(id => 
+        ordersAPI.delete(id).catch(err => {
+          console.error(`Failed to delete order ${id}:`, err);
+          return null;
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Update local state
+      const updated = doneOrders.filter((o) => !selectedOrders.has(o.id));
+      setDoneOrders(updated);
+      setSelectedOrders(new Set());
+      setShowBulkActions(false);
+      
+      toast.success(`✅ ${selectedOrders.size} riwayat pesanan dihapus`);
+    } catch (error) {
+      console.error('❌ Error in bulk delete:', error);
+      toast.error('Gagal menghapus beberapa pesanan');
+      
+      // Fallback ke localStorage
+      const updated = doneOrders.filter((o) => !selectedOrders.has(o.id));
+      localStorage.setItem("ordersDone", JSON.stringify(updated));
+      setDoneOrders(updated);
+      setSelectedOrders(new Set());
+      setShowBulkActions(false);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const toggleOrderSelection = (id) => {
@@ -134,8 +227,8 @@ export default function HistoryOrders() {
       order.waktu,
       order.totalHarga,
       order.status,
-      order.paymentMethod || "Tunai",
-      order.items.map(item => `${item.nama} (${item.qty}x)`).join("; ")
+      order.paymentMethod === "qris" ? "QRIS" : "Tunai",
+      order.items.map(item => `${item.nama || item.menu_name} (${item.qty || item.quantity}x)`).join("; ")
     ]);
 
     const csvContent = [
@@ -172,6 +265,22 @@ export default function HistoryOrders() {
     });
     return countByDate;
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex justify-center items-center transition-colors duration-300 ${
+        theme === "dark" ? "bg-gray-900" : "bg-gray-50"
+      }`}>
+        <div className="text-center">
+          <Loader className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
+          <p className={`text-lg ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+            Memuat riwayat pesanan...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen p-6 transition-colors duration-300 ${
@@ -295,9 +404,14 @@ export default function HistoryOrders() {
                 <div className="flex gap-2">
                   <button
                     onClick={handleBulkDelete}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
+                    disabled={deleting}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deleting ? (
+                      <Loader className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                     Hapus yang Dipilih
                   </button>
                   <button
@@ -446,10 +560,15 @@ export default function HistoryOrders() {
                       </button>
                       <button
                         onClick={() => handleDelete(order.id)}
-                        className="p-2 text-red-600 hover:text-red-700 transition-colors"
+                        disabled={deleting}
+                        className="p-2 text-red-600 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Hapus"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        {deleting ? (
+                          <Loader className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-5 h-5" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -474,16 +593,16 @@ export default function HistoryOrders() {
                               <div key={i} className="flex justify-between text-sm">
                                 <div>
                                   <span className="font-medium text-gray-800 dark:text-white">
-                                    {item.nama} × {item.qty}
+                                    {item.nama || item.menu_name} × {item.qty || item.quantity}
                                   </span>
-                                  {item.catatan && (
+                                  {(item.catatan || item.notes) && (
                                     <span className="text-gray-500 dark:text-gray-400 italic ml-2">
-                                      ({item.catatan})
+                                      ({item.catatan || item.notes})
                                     </span>
                                   )}
                                 </div>
                                 <span className="font-semibold text-gray-800 dark:text-white">
-                                  {formatCurrency(item.harga * item.qty)}
+                                  {formatCurrency((item.harga || item.price) * (item.qty || item.quantity))}
                                 </span>
                               </div>
                             ))}
@@ -612,24 +731,24 @@ export default function HistoryOrders() {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <p className="font-medium text-gray-800 dark:text-white">
-                              {item.nama}
+                              {item.nama || item.menu_name}
                             </p>
                             <div className="flex items-center gap-4 mt-1">
                               <span className="text-sm text-gray-600 dark:text-gray-400">
-                                Qty: {item.qty}
+                                Qty: {item.qty || item.quantity}
                               </span>
                               <span className="text-sm text-gray-600 dark:text-gray-400">
-                                @ {formatCurrency(item.harga)}
+                                @ {formatCurrency(item.harga || item.price)}
                               </span>
                             </div>
-                            {item.catatan && (
+                            {(item.catatan || item.notes) && (
                               <p className="text-sm text-gray-500 dark:text-gray-400 italic mt-1">
-                                📝 {item.catatan}
+                                📝 {item.catatan || item.notes}
                               </p>
                             )}
                           </div>
                           <span className="font-semibold text-gray-800 dark:text-white">
-                            {formatCurrency(item.harga * item.qty)}
+                            {formatCurrency((item.harga || item.price) * (item.qty || item.quantity))}
                           </span>
                         </div>
                       </div>

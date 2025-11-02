@@ -19,6 +19,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import { encryptTableParam } from "../utils/encryption";
 import { useTheme } from "../context/ThemeContext";
 import { tablesAPI } from '../services/api';
+import toast from "react-hot-toast";
 
 export default function Tables() {
   const { theme } = useTheme();
@@ -34,7 +35,7 @@ export default function Tables() {
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 🔥 LOAD TABLES DARI DATABASE - SAMA PATTERN DENGAN MENU.JSX
+  // 🔥 LOAD TABLES DARI DATABASE
   useEffect(() => {
     loadTablesFromBackend();
   }, []);
@@ -42,10 +43,16 @@ export default function Tables() {
   const loadTablesFromBackend = async () => {
     try {
       console.log('🔄 Loading tables dari database...');
-      const response = await tablesAPI.getAll();
-      const tablesData = response.data || [];
-      setTables(tablesData);
-      console.log('✅ Tables loaded:', tablesData.length);
+      const tablesData = await tablesAPI.getAll();
+      
+      // Pastikan tablesData adalah array
+      const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.data || []);
+      
+      setTables(tablesArray);
+      console.log('✅ Tables loaded:', tablesArray.length);
+      
+      // Simpan ke localStorage sebagai backup
+      localStorage.setItem("tables", JSON.stringify(tablesArray));
     } catch (error) {
       console.error('❌ Gagal memuat tables dari backend:', error);
       // Fallback ke localStorage
@@ -55,6 +62,7 @@ export default function Tables() {
         console.log('🔄 Using localStorage fallback for tables');
       } catch (localError) {
         console.error('❌ Juga gagal baca localStorage:', localError);
+        setTables([]); // Set empty array sebagai fallback
       }
     }
   };
@@ -98,7 +106,7 @@ export default function Tables() {
   // 🔥 ADD TABLE KE DATABASE
   const handleAddTable = async () => {
     if (!form.name.trim()) {
-      alert("Isi nama meja dulu!");
+      toast.error("Isi nama meja dulu!");
       return;
     }
 
@@ -116,25 +124,26 @@ export default function Tables() {
       // ✅ CREATE TABLE DI DATABASE
       const result = await tablesAPI.create(newTableData);
       
-      // Add the new table to state
-      setTables([...tables, result]);
+      // 🔥 FIX: PAKE FUNCTIONAL UPDATE - PASTI PAKE STATE TERBARU
+      setTables(prev => [...prev, result]);
       console.log('✅ Table created successfully:', result.id);
       
       closeModal();
+      toast.success(`Meja ${form.name} berhasil ditambahkan`);
     } catch (error) {
       console.error('❌ Error creating table:', error);
-      alert('Gagal membuat meja. Silakan coba lagi.');
+      toast.error('Gagal membuat meja. Silakan coba lagi.');
       
-      // Fallback ke localStorage
+      // Fallback ke localStorage - JUGA PAKE FUNCTIONAL UPDATE
       const newTable = {
-        id: tables.length ? Math.max(...tables.map(t => t.id)) + 1 : 1,
+        id: Date.now(), // 🔥 PAKE TIMESTAMP BIAR UNIK
         name: form.name,
         status: form.status,
         capacity: parseInt(form.capacity) || 4,
         createdAt: new Date().toISOString()
       };
       
-      setTables([...tables, newTable]);
+      setTables(prev => [...prev, newTable]);
       localStorage.setItem("tables", JSON.stringify([...tables, newTable]));
       closeModal();
     } finally {
@@ -145,7 +154,7 @@ export default function Tables() {
   // 🔥 EDIT TABLE DI DATABASE
   const handleEditTable = async () => {
     if (!form.name.trim()) {
-      alert("Nama meja tidak boleh kosong!");
+      toast.error("Nama meja tidak boleh kosong!");
       return;
     }
 
@@ -163,27 +172,27 @@ export default function Tables() {
       // ✅ UPDATE TABLE DI DATABASE
       const result = await tablesAPI.update(modalData.id, updatedTableData);
       
-      // Update table in state
-      setTables(tables.map((t) => t.id === modalData.id ? result : t));
+      // 🔥 FIX: PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.map((t) => t.id === modalData.id ? result : t));
       console.log('✅ Table updated successfully:', modalData.id);
       
       closeModal();
+      toast.success(`Meja ${form.name} berhasil diupdate`);
     } catch (error) {
       console.error('❌ Error updating table:', error);
-      alert('Gagal mengupdate meja. Silakan coba lagi.');
+      toast.error('Gagal mengupdate meja. Silakan coba lagi.');
       
-      // Fallback ke localStorage
-      setTables(
-        tables.map((t) =>
-          t.id === modalData.id ? { 
-            ...t, 
-            name: form.name, 
-            status: form.status, 
-            capacity: parseInt(form.capacity) || 4,
-            updatedAt: new Date().toISOString()
-          } : t
-        )
-      );
+      // Fallback ke localStorage - JUGA PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.map((t) =>
+        t.id === modalData.id ? { 
+          ...t, 
+          name: form.name, 
+          status: form.status, 
+          capacity: parseInt(form.capacity) || 4,
+          updatedAt: new Date().toISOString()
+        } : t
+      ));
+      
       localStorage.setItem("tables", JSON.stringify(tables));
       closeModal();
     } finally {
@@ -201,32 +210,62 @@ export default function Tables() {
       // ✅ DELETE TABLE DI DATABASE
       await tablesAPI.delete(modalData.id);
       
-      // Remove table from state
-      setTables(tables.filter((t) => t.id !== modalData.id));
+      // 🔥 FIX: PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.filter((t) => t.id !== modalData.id));
       console.log('✅ Table deleted successfully:', modalData.id);
       
       closeModal();
+      toast.success(`Meja ${modalData.name} berhasil dihapus`);
     } catch (error) {
       console.error('❌ Error deleting table:', error);
-      alert('Gagal menghapus meja. Silakan coba lagi.');
+      toast.error('Gagal menghapus meja. Silakan coba lagi.');
       
-      // Fallback ke localStorage
-      setTables(tables.filter((t) => t.id !== modalData.id));
-      localStorage.setItem("tables", JSON.stringify(tables.filter((t) => t.id !== modalData.id)));
+      // Fallback ke localStorage - JUGA PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.filter((t) => t.id !== modalData.id));
+      localStorage.setItem("tables", JSON.stringify(tables));
       closeModal();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBulkDelete = () => {
+  // 🔥 BULK DELETE TABLES DI DATABASE
+  const handleBulkDelete = async () => {
     if (selectedTables.size === 0) return;
     
     if (!window.confirm(`Yakin hapus ${selectedTables.size} meja?`)) return;
+
+    setLoading(true);
     
-    setTables(tables.filter((t) => !selectedTables.has(t.id)));
-    setSelectedTables(new Set());
-    setShowBulkActions(false);
+    try {
+      // Delete each table from database
+      const deletePromises = Array.from(selectedTables).map(id => 
+        tablesAPI.delete(id).catch(err => {
+          console.error(`Failed to delete table ${id}:`, err);
+          return null;
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // 🔥 FIX: PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.filter((t) => !selectedTables.has(t.id)));
+      setSelectedTables(new Set());
+      setShowBulkActions(false);
+      
+      toast.success(`${selectedTables.size} meja berhasil dihapus`);
+    } catch (error) {
+      console.error('❌ Error in bulk delete:', error);
+      toast.error('Gagal menghapus beberapa meja');
+      
+      // Fallback ke localStorage - JUGA PAKE FUNCTIONAL UPDATE
+      setTables(prev => prev.filter((t) => !selectedTables.has(t.id)));
+      localStorage.setItem("tables", JSON.stringify(tables));
+      setSelectedTables(new Set());
+      setShowBulkActions(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleTableSelection = (id) => {
@@ -269,6 +308,7 @@ export default function Tables() {
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
+      toast.success(`QR Code ${table.name} berhasil diunduh`);
     }
   };
 
@@ -626,7 +666,8 @@ export default function Tables() {
                 <div className="flex gap-2">
                   <button
                     onClick={handleBulkDelete}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
+                    disabled={loading}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Trash2 className="w-4 h-4" />
                     Hapus yang Dipilih
