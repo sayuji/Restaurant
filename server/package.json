@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "migrate": "node migrations/cli.js",
+    "migrate:up": "node migrations/cli.js up",
+    "migrate:down": "node migrations/cli.js down",
+    "migrate:status": "node migrations/cli.js status",
+    "migrate:create": "node migrations/cli.js create"
   },
   "keywords": [],
   "author": "",
