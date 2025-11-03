@@ -221,7 +221,19 @@ export default function Orders() {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden transition-colors duration-300">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Pilih Meja</h2>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Pilih Meja</h2>
+            {/* Tombol Kembali */}
+            <button
+              onClick={() => window.location.href = '/Tables'} // Ganti dengan routing yang sesuai
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Buat Meja
+            </button>
+          </div>
           <p className="text-gray-600 dark:text-gray-400 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
         </div>
         
@@ -235,6 +247,14 @@ export default function Orders() {
               </div>
               <p className="text-gray-500 dark:text-gray-400">Tidak ada meja tersedia</p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Silakan buat meja terlebih dahulu di halaman Tables</p>
+              
+              {/* Tombol Kembali alternatif ketika tidak ada meja */}
+              <button
+                onClick={() => window.location.href = '/Tables'}
+                className="mt-4 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 font-medium"
+              >
+                Pergi ke Halaman Tables
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -278,6 +298,12 @@ export default function Orders() {
               </svg>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Tidak ada meja yang tersedia saat ini</p>
+            <button
+              onClick={() => window.location.href = '/Tables'}
+              className="mt-3 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
+            >
+              Kelola Meja
+            </button>
           </div>
         )}
       </div>

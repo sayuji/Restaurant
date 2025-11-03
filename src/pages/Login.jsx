@@ -127,17 +127,6 @@ export default function Login() {
     }
   ];
 
-  const getRoleBadge = (role) => {
-    const badges = {
-      admin: "bg-red-500 text-white",
-      manager: "bg-blue-500 text-white", 
-      kitchen: "bg-orange-500 text-white",
-      cashier: "bg-green-500 text-white",
-      staff: "bg-gray-500 text-white"
-    };
-    return badges[role] || "bg-gray-500 text-white";
-  };
-
   const demoUsers = [
     { username: "admin", password: "password", role: "admin", description: "Full Access" },
     { username: "manager", password: "password", role: "manager", description: "Management" },
@@ -323,9 +312,6 @@ export default function Login() {
                       <div className="flex items-center gap-2">
                         <span className="text-white text-sm font-medium">
                           {user.username}
-                        </span>
-                        <span className={`px-2 py-1 rounded text-xs ${getRoleBadge(user.role)}`}>
-                          {user.role}
                         </span>
                       </div>
                       <span className="text-gray-400 text-xs">

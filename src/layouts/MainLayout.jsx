@@ -8,13 +8,21 @@ import {
   List,
   Settings,
   Clock,
+  User,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getCurrentUser, hasAnyRole } from "../services/api";
 
 export default function MainLayout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const currentUser = getCurrentUser();
+    setUser(currentUser);
+  }, []);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -24,20 +32,42 @@ export default function MainLayout({ children }) {
   const handleLogout = () => {
     if (window.confirm("Yakin ingin logout?")) {
       localStorage.removeItem("user");
-      localStorage.removeItem("token"); // Clear token as well
+      localStorage.removeItem("token");
       navigate("/login");
     }
   };
 
-  const menuItems = [
-    { name: "Dashboard", icon: <Home size={20} />, path: "/" },
-    { name: "Menu", icon: <Utensils size={20} />, path: "/menu" },
-    { name: "Orders", icon: <ShoppingCart size={20} />, path: "/orders" },
-    { name: "List Orders", icon: <List size={20} />, path: "/list-orders" },
-    { name: "History", icon: <Clock size={20} />, path: "/history-orders" },
-    { name: "Tables", icon: <Table size={20} />, path: "/tables" },
-    { name: "Settings", icon: <Settings size={20} />, path: "/settings" },
-  ];
+  // 🔥 MENU ITEMS BERDASARKAN ROLE
+  const getMenuItems = () => {
+    const allMenuItems = [
+      { name: "Dashboard", icon: <Home size={20} />, path: "/", roles: ['admin', 'manager', 'kitchen', 'cashier'] },
+      
+      // Menu Management - Admin & Manager only
+      { name: "Menu", icon: <Utensils size={20} />, path: "/menu", roles: ['admin', 'manager'] },
+      
+      // Orders - Semua role bisa akses
+      { name: "Orders", icon: <ShoppingCart size={20} />, path: "/orders", roles: ['admin', 'manager', 'kitchen', 'cashier'] },
+      
+      // List Orders - Kitchen staff & above
+      { name: "List Orders", icon: <List size={20} />, path: "/list-orders", roles: ['admin', 'manager', 'kitchen'] },
+      
+      // History - Manager & above
+      { name: "History", icon: <Clock size={20} />, path: "/history-orders", roles: ['admin', 'manager'] },
+      
+      // Tables - Admin & Manager only
+      { name: "Tables", icon: <Table size={20} />, path: "/tables", roles: ['admin', 'manager'] },
+      
+      // Settings - Admin only
+      { name: "Settings", icon: <Settings size={20} />, path: "/settings", roles: ['admin'] },
+    ];
+
+    // Filter menu berdasarkan role user
+    return allMenuItems.filter(item => 
+      item.roles.includes(user?.role)
+    );
+  };
+
+  const menuItems = getMenuItems();
 
   // Check if current path matches menu item
   const isActivePath = (path) => {
@@ -61,11 +91,17 @@ export default function MainLayout({ children }) {
     </Link>
   );
 
+  if (!user) {
+    return <div>Loading user data...</div>;
+  }
+
   return (
     <div className="flex h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 overflow-hidden transition-colors duration-300">
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md z-20 p-4 flex justify-between items-center">
-        <div className="text-xl font-bold">🍽️ RestoMaster</div>
+        <div className="flex items-center gap-2">
+          <div className="text-xl font-bold">🍽️ RestoMaster</div>
+        </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700"
@@ -86,8 +122,20 @@ export default function MainLayout({ children }) {
       `}>
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header - Hidden on mobile */}
-          <div className="text-2xl font-bold text-center py-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 lg:block hidden">
-            🍽️ RestoMaster
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 lg:block hidden">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-2xl font-bold">🍽️ RestoMaster</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-white">
+                  {user.fullName || user.username}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Navigation */}
