@@ -161,6 +161,299 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// ==========================================
+// 👥 USER MANAGEMENT ROUTES (ADMIN ONLY)
+// ==========================================
+
+// 🔐 GET ALL USERS
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    // Cuma admin yang bisa lihat semua user
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya admin yang bisa mengakses.'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT 
+        id, 
+        username, 
+        role, 
+        full_name, 
+        email, 
+        is_active, 
+        last_login, 
+        created_at,
+        updated_at
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+
+    console.log('📋 GET /api/users - Total users:', result.rows.length);
+    
+    res.json({
+      success: true,
+      users: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Get users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil data users'
+    });
+  }
+});
+
+// 🔐 REGISTER NEW USER
+app.post('/api/auth/register', authenticateToken, async (req, res) => {
+  try {
+    // Cuma admin yang bisa register user baru
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Hanya admin yang bisa menambah user baru'
+      });
+    }
+
+    const { username, password, role, fullName, email } = req.body;
+    
+    console.log('👤 [DEBUG] Register attempt by admin:', req.user.username, 'for user:', username);
+    console.log('📝 [DEBUG] Request data:', { username, role, fullName, email });
+
+    // Validasi input
+    if (!username || !password || !role) {
+      console.log('❌ [DEBUG] Validation failed - missing fields');
+      return res.status(400).json({
+        success: false,
+        message: 'Username, password, dan role harus diisi'
+      });
+    }
+
+    // Validasi role
+    const validRoles = ['admin', 'manager', 'kitchen', 'cashier', 'staff'];
+    if (!validRoles.includes(role)) {
+      console.log('❌ [DEBUG] Invalid role:', role);
+      return res.status(400).json({
+        success: false,
+        message: 'Role tidak valid'
+      });
+    }
+
+    // Cek apakah username sudah ada
+    console.log('🔍 [DEBUG] Checking if username exists:', username);
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (existingUser.rows.length > 0) {
+      console.log('❌ [DEBUG] Username already exists:', username);
+      return res.status(400).json({
+        success: false,
+        message: 'Username sudah digunakan'
+      });
+    }
+
+    // Hash password
+    console.log('🔐 [DEBUG] Hashing password...');
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Insert user baru ke database
+    console.log('💾 [DEBUG] Inserting new user to database...');
+    const result = await pool.query(
+      `INSERT INTO users (username, password_hash, role, full_name, email, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
+       RETURNING id, username, role, full_name, email, is_active, created_at`,
+      [username, hashedPassword, role, fullName || null, email || null, true]
+    );
+
+    const newUser = result.rows[0];
+    
+    console.log('✅ [DEBUG] User registered successfully:', newUser);
+    
+    res.status(201).json({
+      success: true,
+      message: 'User berhasil didaftarkan',
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        role: newUser.role,
+        fullName: newUser.full_name,
+        email: newUser.email,
+        isActive: newUser.is_active,
+        createdAt: newUser.created_at
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [DEBUG] Register error details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mendaftarkan user: ' + error.message
+    });
+  }
+});
+
+// 🔐 UPDATE USER
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak'
+      });
+    }
+
+    const userId = parseInt(req.params.id);
+    const { username, role, fullName, email, isActive } = req.body;
+
+    console.log('✏️ UPDATE /api/users/' + userId, { username, role, isActive });
+
+    // Cek jika user exists
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Update user
+    const result = await pool.query(
+      `UPDATE users 
+       SET username = $1, role = $2, full_name = $3, email = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6 
+       RETURNING id, username, role, full_name, email, is_active, last_login, created_at, updated_at`,
+      [username, role, fullName || null, email || null, isActive, userId]
+    );
+
+    console.log('✅ User updated - ID:', userId);
+    
+    res.json({
+      success: true,
+      message: 'User berhasil diupdate',
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Update user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengupdate user'
+    });
+  }
+});
+
+// 🔐 DELETE USER
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak'
+      });
+    }
+
+    const userId = parseInt(req.params.id);
+    console.log('🗑️ DELETE /api/users/' + userId);
+
+    // Cek jika user exists
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Jangan allow delete sendiri
+    if (userId === req.user.userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak bisa menghapus akun sendiri'
+      });
+    }
+
+    // Delete user
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    console.log('✅ User deleted - ID:', userId);
+    
+    res.json({
+      success: true,
+      message: 'User berhasil dihapus'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat menghapus user'
+    });
+  }
+});
+
+// 🔐 UPDATE USER STATUS (Active/Inactive)
+app.put('/api/users/:id/status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak'
+      });
+    }
+
+    const userId = parseInt(req.params.id);
+    const { isActive } = req.body;
+
+    console.log('🔧 UPDATE STATUS /api/users/' + userId, { isActive });
+
+    // Cek jika user exists
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Jangan allow non-active sendiri
+    if (userId === req.user.userId && !isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak bisa menonaktifkan akun sendiri'
+      });
+    }
+
+    // Update status
+    const result = await pool.query(
+      `UPDATE users 
+       SET is_active = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 
+       RETURNING id, username, role, is_active`,
+      [isActive, userId]
+    );
+
+    console.log('✅ User status updated - ID:', userId, 'Status:', isActive);
+    
+    res.json({
+      success: true,
+      message: `User berhasil ${isActive ? 'diaktifkan' : 'dinonaktifkan'}`,
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Update user status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengupdate status user'
+    });
+  }
+});
+
 // 🔐 GET USER PROFILE
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
@@ -190,7 +483,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 📋 POSTGRESQL ROUTES - MENU (PROTECTED)
+// 📋 MENU ROUTES
 // ==========================================
 
 // GET all menus
@@ -380,7 +673,7 @@ app.delete('/api/menu/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 🛒 ORDERS ROUTES - LENGKAP DENGAN SEMUA ENDPOINTS
+// 🛒 ORDERS ROUTES
 // ==========================================
 
 // GET all orders
@@ -517,19 +810,19 @@ app.delete('/api/orders/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 🏪 TABLES ROUTES - COMPREHENSIVE CRUD OPERATIONS
+// 🏪 TABLES ROUTES
 // ==========================================
 const tablesRouter = require('./routes/tables');
 app.use('/api/tables', tablesRouter);
 
 app.listen(PORT, () => {
-  console.log(`🍔 Backend dengan File Upload & Authentication jalan di http://localhost:${PORT}`);
+  console.log(`🍔 Backend dengan User Management jalan di http://localhost:${PORT}`);
   console.log(`📱 Database: PostgreSQL - restaurant_db`);
   console.log(`🔐 JWT Secret: ${JWT_SECRET}`);
+  console.log(`👥 USER MANAGEMENT: READY! (Admin only)`);
   console.log(`🖼️ File Upload: READY!`);
-  console.log(`📁 Upload folder: /uploads/menu-images/`);
-  console.log(`🔥 AUTH API: READY! (POST /api/auth/login, GET /api/auth/me)`);
-  console.log(`🛒 ORDERS API: FULL CRUD READY!`);
-  console.log(`📋 MENU API: FULL CRUD READY!`);
-  console.log(`🏪 TABLES API: FULL CRUD READY!`);
+  console.log(`🔥 AUTH API: READY!`);
+  console.log(`🛒 ORDERS API: READY!`);
+  console.log(`📋 MENU API: READY!`);
+  console.log(`🏪 TABLES API: READY!`);
 });

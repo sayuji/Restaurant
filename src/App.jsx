@@ -12,6 +12,7 @@ import ProtectedRoute, { AdminRoute } from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
 import HistoryOrders from "./pages/HistoryOrders";
 import TitleManager from "./components/TitleManager";
+import UserManagement from './pages/UserManagement';
 
 export default function App() {
   useEffect(() => {
@@ -126,6 +127,17 @@ export default function App() {
                 <HistoryOrders />
               </MainLayout>
             </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/users"
+          element={
+            <AdminRoute>
+              <MainLayout>
+                <UserManagement />
+              </MainLayout>
+            </AdminRoute>
           }
         />
 

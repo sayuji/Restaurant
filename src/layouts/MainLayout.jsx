@@ -1,14 +1,15 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import {
-  Home,
-  Utensils,
-  ShoppingCart,
-  Table,
-  LogOut,
-  List,
-  Settings,
-  Clock,
+import { 
+  Home, 
+  Utensils, 
+  ShoppingCart, 
+  Table, 
+  LogOut, 
+  List, 
+  Settings, 
+  Clock, 
   User,
+  Users 
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getCurrentUser, hasAnyRole } from "../services/api";
@@ -59,6 +60,8 @@ export default function MainLayout({ children }) {
       
       // Settings - Admin only
       { name: "Settings", icon: <Settings size={20} />, path: "/settings", roles: ['admin'] },
+      
+      { name: "User Management", icon: <Users size={20} />, path: "/users", roles: ['admin'] },
     ];
 
     // Filter menu berdasarkan role user

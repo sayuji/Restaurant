@@ -215,5 +215,26 @@ export const ROLES = {
   STAFF: 'staff'
 };
 
+// ==========================================
+// 👥 USER MANAGEMENT API (ADMIN ONLY)
+// ==========================================
+
+export const usersAPI = {
+  // Get all users (admin only)
+  getAll: () => api.get('/users'),
+  
+  // Register new user (admin only)
+  register: (userData) => api.post('/auth/register', userData),
+  
+  // Update user (admin only)
+  update: (id, userData) => api.put(`/users/${id}`, userData),
+  
+  // Delete user (admin only)
+  delete: (id) => api.delete(`/users/${id}`),
+  
+  // Toggle user active status
+  toggleStatus: (id, isActive) => api.put(`/users/${id}/status`, { isActive })
+};
+
 // Default export
 export default api;
