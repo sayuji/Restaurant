@@ -7,6 +7,7 @@ import Orders from "./pages/Orders";
 import Checkout from "./pages/Checkout";
 import ListOrders from "./pages/ListOrders";
 import Tables from "./pages/Tables";
+import Receipts from './pages/Receipts';
 import Settings from "./pages/Settings";
 import ProtectedRoute, { AdminRoute } from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
@@ -105,6 +106,17 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/receipts"
+          element={
+            <ProtectedRoute requiredAnyRole={['admin', 'manager', 'cashier']}>
+              <MainLayout>
+                <Receipts />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />  
 
         {/* Settings - Admin only */}
         <Route
