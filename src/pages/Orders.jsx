@@ -1,9 +1,23 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FiSearch, FiMinus, FiPlus, FiShoppingCart, FiX } from "react-icons/fi";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Search, 
+  Plus, 
+  Minus, 
+  ShoppingCart, 
+  X,
+  Users,
+  Table as TableIcon,
+  Clock,
+  CheckCircle,
+  Loader,
+  Filter
+} from "lucide-react";
 import { decryptTableParam, getQueryParam, isValidEncryptedParam } from "../utils/encryption";
 import { useTheme } from "../context/ThemeContext";
 import { menuAPI, ordersAPI, tablesAPI } from '../services/api';
+import toast from "react-hot-toast";
 
 export default function Orders() {
   const { theme } = useTheme();
@@ -25,6 +39,7 @@ export default function Orders() {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
 
   // 🔥 LOAD DATA DARI DATABASE - SAMA PATTERN DENGAN MENU.JSX
   useEffect(() => {
@@ -45,6 +60,7 @@ export default function Orders() {
   // 🔥 LOAD TABLES DARI DATABASE
   const loadTablesFromBackend = async () => {
     try {
+      setTableLoading(true);
       console.log('🔄 Loading tables dari database...');
       const response = await tablesAPI.getAll();
       const tablesData = response.data || [];
@@ -72,6 +88,7 @@ export default function Orders() {
       
     } catch (error) {
       console.error('❌ Gagal memuat tables dari backend:', error);
+      toast.error("Gagal memuat data meja");
       // Fallback ke localStorage
       try {
         const savedTables = JSON.parse(localStorage.getItem("tables")) || [];
@@ -80,6 +97,8 @@ export default function Orders() {
       } catch (localError) {
         console.error('❌ Juga gagal baca localStorage:', localError);
       }
+    } finally {
+      setTableLoading(false);
     }
   };
 
@@ -100,9 +119,11 @@ export default function Orders() {
         ).values(),
       ];
       setCategories(uniqueCats);
+      toast.success("Menu berhasil dimuat");
       
     } catch (error) {
       console.error('❌ Gagal memuat menu dari backend:', error);
+      toast.error("Gagal memuat data menu");
       // Fallback ke localStorage
       try {
         const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
@@ -163,22 +184,30 @@ export default function Orders() {
             : item
         )
       );
+      toast.success(`Ditambahkan ${qty}x ${menu.name} ke pesanan`);
     } else {
       setOrderItems([...orderItems, { ...menu, quantity: qty, notes: note }]);
+      toast.success(`${menu.name} ditambahkan ke pesanan`);
     }
   };
 
   const removeFromOrder = (id) => {
+    const item = orderItems.find(item => item.id === id);
     setOrderItems(orderItems.filter((item) => item.id !== id));
+    toast.success(`${item?.name} dihapus dari pesanan`);
   };
 
   const updateQuantity = (id, qty) => {
     if (qty < 1) return;
+    const item = orderItems.find(item => item.id === id);
     setOrderItems(
       orderItems.map((item) =>
         item.id === id ? { ...item, quantity: qty } : item
       )
     );
+    if (qty > item.quantity) {
+      toast.success(`Ditambahkan ${item.name}`);
+    }
   };
 
   const totalPrice = orderItems.reduce(
@@ -188,70 +217,96 @@ export default function Orders() {
 
   // 🔥 HANDLE CHECKOUT - INTEGRASI DENGAN DATABASE
   const handleCheckout = async () => {
-    if (orderItems.length === 0) return;
+    if (orderItems.length === 0) {
+      toast.error("Pilih menu terlebih dahulu!");
+      return;
+    }
     if (!selectedTable) {
-      alert("Silakan pilih meja terlebih dahulu!");
+      toast.error("Silakan pilih meja terlebih dahulu!");
       return;
     }
 
-    // Siapkan data order tanpa simpan ke database
-    const orderData = {
-      tableId: selectedTable.id,
-      tableName: selectedTable.name,
-      items: orderItems.map((item) => ({
-        id: item.id, // tambahkan ID menu
-        nama: item.name,
-        qty: item.quantity,
-        harga: item.price,
-        catatan: item.notes,
-      })),
-      totalHarga: totalPrice,
-    };
+    setLoading(true);
 
-    console.log('🔄 Preparing order data for checkout:', orderData);
-    
-    // Navigate ke checkout dengan data order
-    navigate("/checkout", { 
-      state: orderData 
-    });
+    try {
+      // Siapkan data order tanpa simpan ke database
+      const orderData = {
+        tableId: selectedTable.id,
+        tableName: selectedTable.name,
+        items: orderItems.map((item) => ({
+          id: item.id, // tambahkan ID menu
+          nama: item.name,
+          qty: item.quantity,
+          harga: item.price,
+          catatan: item.notes,
+        })),
+        totalHarga: totalPrice,
+      };
+
+      console.log('🔄 Preparing order data for checkout:', orderData);
+      
+      // Navigate ke checkout dengan data order
+      navigate("/checkout", { 
+        state: orderData 
+      });
+      toast.success("Pesanan berhasil disiapkan!");
+      
+    } catch (error) {
+      console.error('❌ Error preparing order:', error);
+      toast.error("Gagal memproses pesanan");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 🔥 TABLE SELECTOR COMPONENT
   const TableSelector = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden transition-colors duration-300">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden transition-colors duration-300 border border-gray-200 dark:border-gray-700"
+      >
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Pilih Meja</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                <TableIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Pilih Meja</h2>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
+              </div>
+            </div>
             {/* Tombol Kembali */}
             <button
-              onClick={() => window.location.href = '/Tables'} // Ganti dengan routing yang sesuai
+              onClick={() => window.location.href = '/tables'}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
+              <Plus className="w-4 h-4" />
               Buat Meja
             </button>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
         </div>
         
         <div className="p-4 max-h-96 overflow-y-auto">
-          {availableTables.length === 0 ? (
+          {tableLoading ? (
+            <div className="text-center py-8">
+              <Loader className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400">Memuat data meja...</p>
+            </div>
+          ) : availableTables.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8l-4 4m0 0l-4-4m4 4V3" />
-                </svg>
+                <TableIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               </div>
               <p className="text-gray-500 dark:text-gray-400">Tidak ada meja tersedia</p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Silakan buat meja terlebih dahulu di halaman Tables</p>
               
               {/* Tombol Kembali alternatif ketika tidak ada meja */}
               <button
-                onClick={() => window.location.href = '/Tables'}
-                className="mt-4 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 font-medium"
+                onClick={() => window.location.href = '/tables'}
+                className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg transition-colors duration-200 font-medium"
               >
                 Pergi ke Halaman Tables
               </button>
@@ -259,15 +314,18 @@ export default function Orders() {
           ) : (
             <div className="grid grid-cols-2 gap-3">
               {availableTables.map((table) => (
-                <button
+                <motion.button
                   key={table.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   onClick={() => {
                     setSelectedTable(table);
                     setShowTableSelector(false);
+                    toast.success(`Meja ${table.name} dipilih`);
                   }}
                   className={`p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                     table.status === "kosong"
-                      ? "border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500"
+                      ? "border-green-200 dark:border-green-600 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 hover:border-green-300 dark:hover:border-green-500 hover:shadow-lg"
                       : "border-red-200 dark:border-red-600 bg-red-50 dark:bg-red-900 opacity-60 cursor-not-allowed"
                   }`}
                   disabled={table.status !== "kosong"}
@@ -284,7 +342,7 @@ export default function Orders() {
                   <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                     {table.status === "kosong" ? "Tersedia" : "Terisi"}
                   </p>
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -293,20 +351,18 @@ export default function Orders() {
         {availableTables.filter(t => t.status === "kosong").length === 0 && availableTables.length > 0 && (
           <div className="p-6 text-center border-t border-gray-200 dark:border-gray-700">
             <div className="text-gray-500 dark:text-gray-400 mb-2">
-              <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock className="w-12 h-12 mx-auto mb-2" />
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Tidak ada meja yang tersedia saat ini</p>
             <button
-              onClick={() => window.location.href = '/Tables'}
+              onClick={() => window.location.href = '/tables'}
               className="mt-3 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
             >
               Kelola Meja
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 
@@ -321,70 +377,95 @@ export default function Orders() {
       
       {/* Enhanced Header */}
       <header className="mb-8 text-center">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mx-auto max-w-md transition-colors duration-300">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mx-auto max-w-md transition-colors duration-300 border border-gray-200 dark:border-gray-700"
+        >
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <ShoppingCart className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-white">
             Order Menu
           </h1>
           
           {/* Selected Table Display */}
           {selectedTable ? (
-            <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-xl border border-green-200 dark:border-green-600 transition-colors duration-300">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-4 p-3 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-xl border border-green-200 dark:border-green-600 transition-colors duration-300"
+            >
               <div className="flex items-center justify-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <p className="text-green-800 dark:text-green-200 font-semibold">{selectedTable.name}</p>
                 <button
                   onClick={() => setShowTableSelector(true)}
                   className="ml-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition-colors"
                   title="Ganti meja"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <Users className="w-4 h-4" />
                 </button>
               </div>
               <p className="text-xs text-green-700 dark:text-green-300 mt-1">
                 Kapasitas: {selectedTable.capacity} orang
               </p>
-            </div>
+            </motion.div>
           ) : (
-            <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-xl border border-yellow-200 dark:border-yellow-600 transition-colors duration-300">
-              <p className="text-yellow-800 dark:text-yellow-200 font-medium">Pilih meja untuk melanjutkan</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-xl border border-yellow-200 dark:border-yellow-600 transition-colors duration-300"
+            >
+              <p className="text-yellow-800 dark:text-yellow-200 font-medium flex items-center justify-center gap-2">
+                <Clock className="w-4 h-4" />
+                Pilih meja untuk melanjutkan
+              </p>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
       </header>
 
       {/* Enhanced Filter & Search */}
       <div className="flex flex-col gap-4 mb-8 max-w-4xl mx-auto">
         {/* Category Pills */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 transition-colors duration-300">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Kategori Menu</h3>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 transition-colors duration-300 border border-gray-200 dark:border-gray-700"
+        >
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            Kategori Menu
+          </h3>
           <div className="flex flex-wrap gap-2">
             {categories.map((cat) => (
-              <button
+              <motion.button
                 key={cat.value}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedCategory(cat.value)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   selectedCategory === cat.value
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 hover:shadow-md'
                 }`}
               >
                 {cat.label}
-              </button>
+              </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Enhanced Search Input */}
-        <div className="relative">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="relative"
+        >
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="h-5 w-5 text-gray-400" />
+            <Search className="h-5 w-5 text-gray-400" />
           </div>
           <input
             type="text"
@@ -393,15 +474,19 @@ export default function Orders() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border-0 rounded-2xl shadow-md focus:ring-2 focus:ring-blue-500 focus:shadow-lg transition-all duration-300 bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
-        </div>
+        </motion.div>
       </div>
 
       {/* Enhanced Menu List */}
       <div className="max-w-6xl mx-auto mb-96 md:mb-8">
         {filteredMenus.length === 0 ? (
-          <div className="text-center py-12">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
             <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full mx-auto mb-6 flex items-center justify-center">
-              <FiShoppingCart className="w-12 h-12 text-gray-400 dark:text-gray-600" />
+              <ShoppingCart className="w-12 h-12 text-gray-400 dark:text-gray-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Tidak ada menu ditemukan
@@ -412,13 +497,16 @@ export default function Orders() {
                 : "Coba ubah pencarian atau filter kategori untuk menemukan menu yang Anda inginkan."
               }
             </p>
-          </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredMenus.map((menu) => (
-              <div
+            {filteredMenus.map((menu, index) => (
+              <motion.div
                 key={menu.id}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700"
               >
                 <div className="relative">
                   <img
@@ -447,29 +535,36 @@ export default function Orders() {
                       </p>
                     </div>
                   </div>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setSelectedMenu(menu);
                       setShowModal(true);
                     }}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl py-3 font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl py-3 font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                   >
-                    + Tambah ke Pesanan
-                  </button>
+                    <Plus className="w-4 h-4" />
+                    Tambah ke Pesanan
+                  </motion.button>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
       </div>
 
       {/* Enhanced Order Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-t-3xl shadow-2xl p-6 fixed bottom-0 left-0 right-0 md:relative md:max-w-lg md:mx-auto md:rounded-3xl border-t-4 border-blue-600 z-50 transition-colors duration-300">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white dark:bg-gray-800 rounded-t-3xl shadow-2xl p-6 fixed bottom-0 left-0 right-0 md:relative md:max-w-lg md:mx-auto md:rounded-3xl border-t-4 border-blue-600 z-50 transition-colors duration-300 border border-gray-200 dark:border-gray-700"
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">Ringkasan Pesanan</h2>
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 dark:bg-blue-900 rounded-full px-3 py-1">
-              <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm">{orderItems.length} item</span>
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-full px-3 py-1">
+              <span className="text-white font-semibold text-sm">{orderItems.length} item</span>
             </div>
             <button
               onClick={() => setIsOrderSummaryCollapsed(!isOrderSummaryCollapsed)}
@@ -492,7 +587,7 @@ export default function Orders() {
             {orderItems.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <FiShoppingCart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                  <ShoppingCart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                 </div>
                 <p className="text-gray-500 dark:text-gray-400 font-medium">Belum ada menu yang dipilih</p>
                 <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Pilih menu favorit Anda di atas</p>
@@ -500,7 +595,12 @@ export default function Orders() {
             ) : (
               <div className="space-y-3 max-h-48 md:max-h-64 overflow-y-auto mb-4">
                 {orderItems.map((item) => (
-                  <div key={item.id} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 flex justify-between items-center transition-colors duration-300">
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 flex justify-between items-center transition-colors duration-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  >
                     <div className="flex-1">
                       <p className="font-semibold text-gray-800 dark:text-white">{item.name}</p>
                       <p className="text-blue-600 dark:text-blue-400 font-medium">
@@ -518,24 +618,24 @@ export default function Orders() {
                           onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
                           className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 rounded-l-lg transition-colors"
                         >
-                          <FiMinus className="w-3 h-3" />
+                          <Minus className="w-3 h-3" />
                         </button>
                         <span className="w-10 text-center font-semibold text-gray-800 dark:text-white">{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           className="w-8 h-8 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 rounded-r-lg transition-colors"
                         >
-                          <FiPlus className="w-3 h-3" />
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
                       <button
                         onClick={() => removeFromOrder(item.id)}
                         className="w-8 h-8 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors duration-200 flex items-center justify-center"
                       >
-                        <FiX className="w-4 h-4" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
@@ -547,106 +647,141 @@ export default function Orders() {
             <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">Total Pembayaran:</span>
             <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">Rp {totalPrice.toLocaleString()}</span>
           </div>
-          <button
+          <motion.button
+            whileHover={{ scale: loading || orderItems.length === 0 ? 1 : 1.05 }}
+            whileTap={{ scale: loading || orderItems.length === 0 ? 1 : 0.95 }}
             onClick={handleCheckout}
             disabled={orderItems.length === 0 || loading}
             className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${
               orderItems.length === 0 || loading
                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 transform hover:scale-105 shadow-lg hover:shadow-xl'
+                : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl'
             }`}
           >
-            {loading ? '🔄 Memproses...' : orderItems.length === 0 ? 'Pilih Menu Terlebih Dahulu' : '🛒 Lanjut ke Pembayaran'}
-          </button>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Loader className="w-5 h-5 animate-spin" />
+                Memproses...
+              </div>
+            ) : orderItems.length === 0 ? (
+              'Pilih Menu Terlebih Dahulu'
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                Lanjut ke Pembayaran
+              </div>
+            )}
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Enhanced Modal */}
-      {showModal && selectedMenu && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden transition-colors duration-300">
-            {/* Modal Header with Image */}
-            <div className="relative h-48">
-              <img
-                src={getImageSrc(selectedMenu.image)}
-                alt={selectedMenu.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/400x200?text=No+Image';
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="absolute top-4 right-4 w-10 h-10 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-opacity-100 dark:hover:bg-opacity-100 transition-all duration-200"
-              >
-                <FiX className="w-5 h-5" />
-              </button>
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-2xl font-bold text-white mb-1">{selectedMenu.name}</h2>
-                <p className="text-white/90 font-semibold">Rp {parseInt(selectedMenu.price).toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {/* Quantity Selector */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Jumlah Pesanan</label>
-                <div className="flex items-center justify-center">
-                  <button
-                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                    className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-l-xl text-xl transition-colors duration-200"
-                  >
-                    <FiMinus className="w-4 h-4 mx-auto" />
-                  </button>
-                  <div className="w-20 h-12 bg-blue-50 dark:bg-blue-900 border-t border-b border-blue-200 dark:border-blue-700 flex items-center justify-center font-bold text-xl text-blue-600 dark:text-blue-400">
-                    {quantity}
-                  </div>
-                  <button
-                    onClick={() => setQuantity((prev) => prev + 1)}
-                    className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-r-xl text-xl transition-colors duration-200"
-                  >
-                    <FiPlus className="w-4 h-4 mx-auto" />
-                  </button>
+      <AnimatePresence>
+        {showModal && selectedMenu && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden transition-colors duration-300 border border-gray-200 dark:border-gray-700"
+            >
+              {/* Modal Header with Image */}
+              <div className="relative h-48">
+                <img
+                  src={getImageSrc(selectedMenu.image)}
+                  alt={selectedMenu.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = 'https://via.placeholder.com/400x200?text=No+Image';
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="absolute top-4 right-4 w-10 h-10 bg-white dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-opacity-100 dark:hover:bg-opacity-100 transition-all duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-4 left-4 right-4">
+                  <h2 className="text-2xl font-bold text-white mb-1">{selectedMenu.name}</h2>
+                  <p className="text-white/90 font-semibold">Rp {parseInt(selectedMenu.price).toLocaleString()}</p>
                 </div>
               </div>
 
-              {/* Notes */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Catatan Khusus (Opsional)</label>
-                <textarea
-                  placeholder="Contoh: Tidak pedas, extra sambal, dll..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all duration-200 resize-none bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                  rows="3"
-                ></textarea>
-              </div>
+              <div className="p-6">
+                {/* Quantity Selector */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Jumlah Pesanan</label>
+                  <div className="flex items-center justify-center">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                      className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-l-xl text-xl transition-colors duration-200"
+                    >
+                      <Minus className="w-4 h-4 mx-auto" />
+                    </motion.button>
+                    <div className="w-20 h-12 bg-blue-50 dark:bg-blue-900 border-t border-b border-blue-200 dark:border-blue-700 flex items-center justify-center font-bold text-xl text-blue-600 dark:text-blue-400">
+                      {quantity}
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setQuantity((prev) => prev + 1)}
+                      className="w-12 h-12 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-r-xl text-xl transition-colors duration-200"
+                    >
+                      <Plus className="w-4 h-4 mx-auto" />
+                    </motion.button>
+                  </div>
+                </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={() => {
-                    addToOrder(selectedMenu, quantity, notes);
-                    setShowModal(false);
-                    setQuantity(1);
-                    setNotes("");
-                  }}
-                  className="flex-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 transform hover:scale-105 shadow-lg"
-                >
-                  Tambah ke Pesanan - Rp {(selectedMenu.price * quantity).toLocaleString()}
-                </button>
+                {/* Notes */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Catatan Khusus (Opsional)</label>
+                  <textarea
+                    placeholder="Contoh: Tidak pedas, extra sambal, dll..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full border-2 border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all duration-200 resize-none bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                    rows="3"
+                  ></textarea>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowModal(false)}
+                    className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
+                  >
+                    Batal
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      addToOrder(selectedMenu, quantity, notes);
+                      setShowModal(false);
+                      setQuantity(1);
+                      setNotes("");
+                    }}
+                    className="flex-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tambah - Rp {(selectedMenu.price * quantity).toLocaleString()}
+                  </motion.button>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

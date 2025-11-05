@@ -7,17 +7,17 @@ import {
   CheckCircle, 
   Clock, 
   Users, 
-  DollarSign,
   X,
   Plus,
   Minus,
-  FileText,
   ChefHat,
-  Loader
+  Loader,
+  Package
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTheme } from "../context/ThemeContext";
 import { ordersAPI, tablesAPI } from '../services/api';
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function ListOrders() {
   const [orders, setOrders] = useState([]);
@@ -25,7 +25,6 @@ export default function ListOrders() {
   const [showModal, setShowModal] = useState(false);
   const [confirmOrder, setConfirmOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -36,20 +35,19 @@ export default function ListOrders() {
   useEffect(() => {
     loadOrdersFromDatabase();
     
-  // Real-time polling setiap 5 detik
-  const interval = setInterval(loadOrdersFromDatabase, 5000);
+    // Real-time polling setiap 5 detik
+    const interval = setInterval(loadOrdersFromDatabase, 5000);
     return () => clearInterval(interval);
-    }, []);
+  }, []);
 
-    const loadOrdersFromDatabase = async () => {
+  const loadOrdersFromDatabase = async () => {
     try {
       console.log('🔄 Loading orders dari database...');
       const ordersData = await ordersAPI.getAll();
-      console.log('📦 Raw data dari API:', ordersData); // ← CEK INI
       
       // Transform data dari database ke format yang diharapkan
       const transformedOrders = ordersData
-        .filter(order => order.status !== 'completed') // 🔥 FILTER HANYA YANG BELUM SELESAI
+        .filter(order => order.status !== 'completed')
         .map(order => {
           // Fix JSON items yang rusak
           let fixedItems = [];
@@ -79,7 +77,7 @@ export default function ListOrders() {
             namaMeja: order.table_name,
             items: fixedItems,
             totalHarga: order.total_price,
-            status: mapStatus(order.status),
+            status: "Sedang Diproses", // 🔥 HANYA SEDANG DIPROSES
             createdAt: order.created_at,
             waktu: new Date(order.created_at).toLocaleTimeString("id-ID", { hour12: false }),
             tanggal: new Date(order.created_at).toLocaleDateString("id-ID"),
@@ -92,71 +90,18 @@ export default function ListOrders() {
     } catch (error) {
       console.error('❌ Gagal memuat orders dari database:', error);
       
-      // 🔥 FALLBACK KE LOCALSTORAGE TANPA SET LOADING FALSE
+      // 🔥 FALLBACK KE LOCALSTORAGE
       try {
         const stored = JSON.parse(localStorage.getItem("ordersOnProgress")) || [];
         setOrders(stored);
-        console.log('🔄 Using localStorage fallback for orders');
       } catch (localError) {
         console.error('❌ Juga gagal baca localStorage:', localError);
-        setOrders([]); // Set empty array sebagai fallback
+        setOrders([]);
       }
     } finally {
-      setLoading(false); // 🔥 PASTIKAN LOADING SELALU DISET FALSE
+      setLoading(false);
     }
   };
-
-  // Map status dari database ke frontend
-  const mapStatus = (dbStatus) => {
-    const statusMap = {
-      'pending': 'Sedang Diproses',
-      'processing': 'Sedang Diproses', 
-      'ready': 'Siap Disajikan',
-      'served': 'Siap Disajikan',
-      'waiting_payment': 'Menunggu Pembayaran',
-      'completed': 'Selesai'
-    };
-    return statusMap[dbStatus] || 'Sedang Diproses';
-  };
-
-  // Map status dari frontend ke database
-  const mapStatusToDB = (frontendStatus) => {
-    const statusMap = {
-      'Sedang Diproses': 'processing',
-      'Siap Disajikan': 'ready',
-      'Menunggu Pembayaran': 'waiting_payment',
-      'Selesai': 'completed'
-    };
-    return statusMap[frontendStatus] || 'processing';
-  };
-
-  // Filter and sort orders
-  const filteredOrders = orders
-    .filter(order => {
-      const matchesSearch = order?.namaMeja?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          order.items.some(item => 
-                            item.nama?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            item.menu_name?.toLowerCase().includes(searchTerm.toLowerCase())
-                          );
-      
-      const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        case "oldest":
-          return new Date(a.createdAt) - new Date(b.createdAt);
-        case "table":
-          return a.namaMeja.localeCompare(b.namaMeja);
-        case "total":
-          return b.totalHarga - a.totalHarga;
-        default:
-          return 0;
-      }
-    });
 
   // 🔥 UPDATE ORDER DI DATABASE
   const handleSave = async (updatedOrder) => {
@@ -174,7 +119,7 @@ export default function ListOrders() {
           catatan: item.catatan || item.notes
         })),
         totalHarga: updatedOrder.totalHarga,
-        status: mapStatusToDB(updatedOrder.status)
+        status: 'processing' // 🔥 HANYA PROCESSING
       };
 
       await ordersAPI.update(updatedOrder.id, orderPayload);
@@ -221,7 +166,7 @@ export default function ListOrders() {
       // Update table status ke kosong
       await tablesAPI.updateStatus(confirmOrder.tableId, 'kosong');
       
-      // 🔥 LANGSUNG UPDATE LOCAL STATE - JANGAN TUNGGU POLLING
+      // Update local state
       const remainingOrders = orders.filter((o) => o.id !== confirmOrder.id);
       setOrders(remainingOrders);
 
@@ -237,7 +182,7 @@ export default function ListOrders() {
       };
       localStorage.setItem("ordersDone", JSON.stringify([...doneOrders, completedOrder]));
 
-      toast.success(`🎉 Pesanan ${confirmOrder.namaMeja} selesai & meja dikosongkan`);
+      toast.success(`🎉 Pesanan ${confirmOrder.namaMeja} selesai!`);
       setConfirmOrder(null);
       
     } catch (error) {
@@ -313,20 +258,15 @@ export default function ListOrders() {
     setSelectedOrder(updated);
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      "Sedang Diproses": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      "Siap Disajikan": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      "Menunggu Pembayaran": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-      "Selesai": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-    };
-    return colors[status] || colors["Sedang Diproses"];
+  const getStatusColor = () => {
+    return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800";
   };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'IDR'
+      currency: 'IDR',
+      minimumFractionDigits: 0
     }).format(amount);
   };
 
@@ -338,15 +278,42 @@ export default function ListOrders() {
     return `${diffMins} menit`;
   };
 
+  // Filter orders based on search term
+  const filteredOrders = orders.filter(order => 
+    order?.namaMeja?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    order.items.some(item => 
+      item.nama?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.menu_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  ).sort((a, b) => {
+    switch (sortBy) {
+      case "newest":
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      case "oldest":
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      case "table":
+        return a.namaMeja.localeCompare(b.namaMeja);
+      case "total":
+        return b.totalHarga - a.totalHarga;
+      default:
+        return 0;
+    }
+  });
+
+  // Statistics
+  const stats = {
+    total: orders.length
+  };
+
   // Loading state
   if (loading) {
     return (
-      <div className={`min-h-screen flex justify-center items-center transition-colors duration-300 ${
-        theme === "light" ? "bg-gray-50" : "bg-gray-900"
-      }`}>
+      <div className="min-h-screen flex justify-center items-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <Loader className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
-          <p className={`text-lg ${theme === "light" ? "text-gray-600" : "text-gray-400"}`}>
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Loader className="w-8 h-8 text-white animate-spin" />
+          </div>
+          <p className="text-lg font-semibold text-gray-600 dark:text-gray-400">
             Memuat data pesanan...
           </p>
         </div>
@@ -355,9 +322,7 @@ export default function ListOrders() {
   }
 
   return (
-    <div className={`min-h-screen p-6 transition-colors duration-300 ${
-      theme === "light" ? "bg-gray-50" : "bg-gray-900"
-    }`}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 transition-colors duration-300">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -365,29 +330,24 @@ export default function ListOrders() {
         className="mb-8"
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              👨‍🍳 Daftar Pesanan Aktif
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Kelola pesanan yang sedang berlangsung di restoran
-            </p>
+          <div className="flex items-center gap-4 mb-6 lg:mb-0">
+            <div className="w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+              <Package className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+                Daftar Pesanan Aktif
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Kelola pesanan yang sedang berlangsung di restoran
+              </p>
+            </div>
           </div>
           
           {/* Stats */}
-          <div className="flex gap-6 mt-4 lg:mt-0">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {orders.length}
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Pesanan</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {orders.filter(o => o.status === "Siap Disajikan").length}
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Siap Disajikan</p>
-            </div>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 text-center border border-gray-200 dark:border-gray-700">
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Total Pesanan</p>
           </div>
         </div>
       </motion.div>
@@ -397,9 +357,7 @@ export default function ListOrders() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className={`rounded-2xl p-6 mb-6 transition-colors duration-300 ${
-          theme === "light" ? "bg-white shadow-lg" : "bg-gray-800 shadow-lg"
-        }`}
+        className="rounded-2xl shadow-lg p-6 mb-6 transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
       >
         <div className="flex flex-col lg:flex-row gap-4 items-center">
           {/* Search */}
@@ -410,39 +368,16 @@ export default function ListOrders() {
               placeholder="Cari pesanan berdasarkan meja atau menu..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "light"
-                  ? "bg-white border-gray-300 text-gray-800"
-                  : "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-              }`}
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
 
-          {/* Filters */}
+          {/* Sort */}
           <div className="flex flex-wrap gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "light"
-                  ? "bg-white border-gray-300 text-gray-800"
-                  : "bg-gray-700 border-gray-600 text-white"
-              }`}
-            >
-              <option value="all">Semua Status</option>
-              <option value="Sedang Diproses">Sedang Diproses</option>
-              <option value="Siap Disajikan">Siap Disajikan</option>
-              <option value="Menunggu Pembayaran">Menunggu Pembayaran</option>
-            </select>
-
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "light"
-                  ? "bg-white border-gray-300 text-gray-800"
-                  : "bg-gray-700 border-gray-600 text-white"
-              }`}
+              className="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
             >
               <option value="newest">Terbaru</option>
               <option value="oldest">Terlama</option>
@@ -458,9 +393,7 @@ export default function ListOrders() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className={`rounded-2xl p-12 text-center transition-colors duration-300 ${
-            theme === "light" ? "bg-white shadow-lg" : "bg-gray-800 shadow-lg"
-          }`}
+          className="rounded-2xl shadow-lg p-12 text-center transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
         >
           <ChefHat className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
@@ -469,7 +402,7 @@ export default function ListOrders() {
           <p className="text-gray-500 dark:text-gray-400">
             {orders.length === 0 
               ? "Semua pesanan sudah selesai diproses" 
-              : "Tidak ada pesanan yang sesuai dengan filter"
+              : "Tidak ada pesanan yang sesuai dengan pencarian"
             }
           </p>
         </motion.div>
@@ -483,16 +416,12 @@ export default function ListOrders() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ delay: index * 0.1 }}
-                className={`rounded-2xl p-6 transition-all duration-300 hover:shadow-xl ${
-                  theme === "light" 
-                    ? "bg-white shadow-lg border border-gray-200" 
-                    : "bg-gray-800 shadow-lg border border-gray-700"
-                }`}
+                className="rounded-2xl p-6 transition-all duration-300 hover:shadow-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
               >
                 {/* Order Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
                       <Users className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -504,8 +433,8 @@ export default function ListOrders() {
                       </p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-                    {order.status}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor()}`}>
+                    Sedang Diproses
                   </span>
                 </div>
 
@@ -542,7 +471,7 @@ export default function ListOrders() {
                     <span className="text-lg font-semibold text-gray-800 dark:text-white">
                       Total:
                     </span>
-                    <span className="text-xl font-bold text-green-600 dark:text-green-400">
+                    <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrency(order.totalHarga)}
                     </span>
                   </div>
@@ -550,25 +479,29 @@ export default function ListOrders() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2">
-                  <button
+                  <motion.button
                     onClick={() => handleEditClick(order)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-2 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                   >
                     <Edit3 className="w-4 h-4" />
                     Edit
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     onClick={() => handleComplete(order)}
                     disabled={updating}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    whileHover={{ scale: updating ? 1 : 1.02 }}
+                    whileTap={{ scale: updating ? 1 : 0.98 }}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {updating ? (
                       <Loader className="w-4 h-4 animate-spin" />
                     ) : (
                       <CheckCircle className="w-4 h-4" />
                     )}
-                    Selesai
-                  </button>
+                    Selesaikan
+                  </motion.button>
                 </div>
               </motion.div>
             ))}
@@ -583,21 +516,19 @@ export default function ListOrders() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={`rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transition-colors duration-300 ${
-                theme === "light" ? "bg-white" : "bg-gray-800"
-              }`}
+              className="rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
             >
               {/* Modal Header */}
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
                       <Edit3 className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -611,7 +542,7 @@ export default function ListOrders() {
                   </div>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
                   >
                     <X className="w-5 h-5 text-gray-500" />
                   </button>
@@ -624,9 +555,7 @@ export default function ListOrders() {
                   {selectedOrder.items.map((item, i) => (
                     <div
                       key={i}
-                      className={`p-4 rounded-xl transition-colors duration-200 ${
-                        theme === "light" ? "bg-gray-50" : "bg-gray-700"
-                      }`}
+                      className="p-4 rounded-xl bg-gray-50 dark:bg-gray-700 transition-colors duration-200 border border-gray-200 dark:border-gray-600"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold text-gray-800 dark:text-white">
@@ -657,11 +586,7 @@ export default function ListOrders() {
                               type="number"
                               value={item.qty || item.quantity}
                               onChange={(e) => updateItemQty(i, parseInt(e.target.value) || 1)}
-                              className={`w-16 text-center rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none ${
-                                theme === "light"
-                                  ? "border-gray-300 bg-white"
-                                  : "border-gray-600 bg-gray-800 text-white"
-                              }`}
+                              className="w-16 text-center rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
                             />
                             <button
                               onClick={() => updateItemQty(i, (item.qty || item.quantity) + 1)}
@@ -682,11 +607,7 @@ export default function ListOrders() {
                             value={item.catatan || item.notes || ""}
                             onChange={(e) => updateItemNote(i, e.target.value)}
                             placeholder="Tambah catatan..."
-                            className={`w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none ${
-                              theme === "light"
-                                ? "border-gray-300 bg-white"
-                                : "border-gray-600 bg-gray-800 text-white"
-                            }`}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                           />
                         </div>
                       </div>
@@ -701,9 +622,7 @@ export default function ListOrders() {
                 </div>
 
                 {/* Updated Total */}
-                <div className={`mt-6 p-4 rounded-xl ${
-                  theme === "light" ? "bg-blue-50" : "bg-blue-900/20"
-                }`}>
+                <div className="mt-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold text-gray-800 dark:text-white">
                       Total Baru:
@@ -717,20 +636,20 @@ export default function ListOrders() {
 
               {/* Modal Actions */}
               <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
-                <button
+                <motion.button
                   onClick={() => setShowModal(false)}
-                  className={`flex-1 py-3 px-6 rounded-xl font-semibold transition-colors duration-200 ${
-                    theme === "light"
-                      ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
                 >
                   Batal
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => handleSave(selectedOrder)}
                   disabled={updating}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  whileHover={{ scale: updating ? 1 : 1.02 }}
+                  whileTap={{ scale: updating ? 1 : 0.98 }}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   {updating ? (
                     <>
@@ -740,7 +659,7 @@ export default function ListOrders() {
                   ) : (
                     'Simpan Perubahan'
                   )}
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

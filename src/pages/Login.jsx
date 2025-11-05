@@ -13,8 +13,8 @@ import {
   Store,
   Loader
 } from "lucide-react";
-import Swal from "sweetalert2";
 import { authAPI } from '../services/api';
+import toast from "react-hot-toast";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -42,14 +42,7 @@ export default function Login() {
     e.preventDefault();
     
     if (!username.trim() || !password.trim()) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Data tidak lengkap!",
-        text: "Harap isi username dan password",
-        background: '#1f2937',
-        color: 'white',
-        confirmButtonColor: '#f59e0b'
-      });
+      toast.error("Harap isi username dan password");
       return;
     }
 
@@ -65,15 +58,7 @@ export default function Login() {
         localStorage.setItem("token", response.token);
         localStorage.setItem("user", JSON.stringify(response.user));
         
-        await Swal.fire({
-          icon: "success",
-          title: "Login Berhasil! 🎉",
-          text: `Selamat datang, ${response.user.fullName || response.user.username}!`,
-          timer: 2000,
-          showConfirmButton: false,
-          background: '#1f2937',
-          color: 'white'
-        });
+        toast.success(`Selamat datang, ${response.user.fullName || response.user.username}!`);
         
         console.log('✅ Login successful, redirecting...');
         navigate("/");
@@ -96,14 +81,7 @@ export default function Login() {
         errorMessage = "Sesi telah berakhir. Silakan login kembali.";
       }
       
-      await Swal.fire({
-        icon: "error",
-        title: "Login Gagal!",
-        text: errorMessage,
-        background: '#1f2937',
-        color: 'white',
-        confirmButtonColor: '#ef4444'
-      });
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +134,7 @@ export default function Login() {
             transition={{ delay: 0.2, type: "spring" }}
             className="flex items-center justify-center lg:justify-start gap-3 mb-8"
           >
-            <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
               <Coffee className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -173,9 +151,9 @@ export default function Login() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 + index * 0.1 }}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 hover:border-green-500/30 transition-all duration-300"
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 hover:border-blue-500/30 transition-all duration-300"
               >
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center text-white">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center text-white">
                   {feature.icon}
                 </div>
                 <div className="text-left">
@@ -194,15 +172,15 @@ export default function Login() {
             className="grid grid-cols-3 gap-4 text-center"
           >
             <div className="p-4 rounded-2xl bg-gray-800/50 border border-gray-700/50">
-              <div className="text-2xl font-bold text-green-400">100+</div>
+              <div className="text-2xl font-bold text-blue-400">100+</div>
               <div className="text-gray-400 text-sm">Orders/Day</div>
             </div>
             <div className="p-4 rounded-2xl bg-gray-800/50 border border-gray-700/50">
-              <div className="text-2xl font-bold text-green-400">50+</div>
+              <div className="text-2xl font-bold text-blue-400">50+</div>
               <div className="text-gray-400 text-sm">Menu Items</div>
             </div>
             <div className="p-4 rounded-2xl bg-gray-800/50 border border-gray-700/50">
-              <div className="text-2xl font-bold text-green-400">24/7</div>
+              <div className="text-2xl font-bold text-blue-400">24/7</div>
               <div className="text-gray-400 text-sm">Support</div>
             </div>
           </motion.div>
@@ -226,7 +204,7 @@ export default function Login() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.3, type: "spring" }}
-                className="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+                className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
               >
                 <LogIn className="w-8 h-8 text-white" />
               </motion.div>
@@ -250,7 +228,7 @@ export default function Login() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter your username"
                     required
                     disabled={isLoading}
@@ -269,7 +247,7 @@ export default function Login() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-12 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                    className="w-full pl-10 pr-12 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter your password"
                     required
                     disabled={isLoading}
@@ -321,7 +299,7 @@ export default function Login() {
                   ))}
                 </div>
                 <p className="text-xs text-gray-500 text-center mt-2">
-                  Password: <span className="text-green-400">password</span> untuk semua user
+                  Password: <span className="text-blue-400">password</span> untuk semua user
                 </p>
               </motion.div>
 
@@ -331,7 +309,7 @@ export default function Login() {
                 disabled={isLoading}
                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <AnimatePresence mode="wait">
                   {isLoading ? (
@@ -372,9 +350,9 @@ export default function Login() {
                 Secure restaurant management system
               </p>
               <div className="flex justify-center gap-2 mt-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
               </div>
             </motion.div>
           </motion.div>
@@ -383,9 +361,9 @@ export default function Login() {
 
       {/* Background Decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-green-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-green-500/5 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
       </div>
     </div>
   );

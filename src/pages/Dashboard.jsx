@@ -48,7 +48,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   // Colors for charts
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+  const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6b7280'];
 
   // 🔥 LOAD DATA DARI DATABASE
   useEffect(() => {
@@ -283,47 +283,47 @@ export default function Dashboard() {
       label: "Penjualan Hari Ini",
       value: `Rp ${stats.todaySales.toLocaleString()}`,
       icon: DollarSign,
-      color: "from-green-500 to-emerald-600",
-      bgColor: "bg-green-50 dark:bg-green-900/20",
-      textColor: "text-green-700 dark:text-green-300"
+      color: "from-blue-500 to-blue-600",
+      bgColor: "bg-blue-50 dark:bg-blue-900/20",
+      textColor: "text-blue-700 dark:text-blue-300"
     },
     {
       label: "Total Orders",
       value: stats.totalOrders,
       icon: ShoppingCart,
-      color: "from-blue-500 to-cyan-600",
-      bgColor: "bg-blue-50 dark:bg-blue-900/20",
-      textColor: "text-blue-700 dark:text-blue-300"
+      color: "from-purple-500 to-purple-600",
+      bgColor: "bg-purple-50 dark:bg-purple-900/20",
+      textColor: "text-purple-700 dark:text-purple-300"
     },
     {
       label: "Order Aktif",
       value: `${stats.activeTables}`,
       icon: Users,
-      color: "from-amber-500 to-orange-600",
-      bgColor: "bg-amber-50 dark:bg-amber-900/20",
-      textColor: "text-amber-700 dark:text-amber-300"
+      color: "from-green-500 to-green-600",
+      bgColor: "bg-green-50 dark:bg-green-900/20",
+      textColor: "text-green-700 dark:text-green-300"
     },
     {
       label: "Menu Terlaris",
       value: stats.popularMenu,
       icon: Utensils,
-      color: "from-red-500 to-pink-600",
-      bgColor: "bg-red-50 dark:bg-red-900/20",
-      textColor: "text-red-700 dark:text-red-300"
+      color: "from-orange-500 to-orange-600",
+      bgColor: "bg-orange-50 dark:bg-orange-900/20",
+      textColor: "text-orange-700 dark:text-orange-300"
     },
     {
       label: "Rata-rata Order",
       value: `Rp ${stats.avgOrderValue.toLocaleString()}`,
       icon: TrendingUp,
-      color: "from-purple-500 to-indigo-600",
-      bgColor: "bg-purple-50 dark:bg-purple-900/20",
-      textColor: "text-purple-700 dark:text-purple-300"
+      color: "from-indigo-500 to-indigo-600",
+      bgColor: "bg-indigo-50 dark:bg-indigo-900/20",
+      textColor: "text-indigo-700 dark:text-indigo-300"
     },
     {
       label: "Performa Dapur",
       value: stats.kitchenPerformance,
       icon: ChefHat,
-      color: "from-gray-500 to-gray-700",
+      color: "from-gray-500 to-gray-600",
       bgColor: "bg-gray-50 dark:bg-gray-900/20",
       textColor: "text-gray-700 dark:text-gray-300"
     }
@@ -340,7 +340,7 @@ export default function Dashboard() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex justify-center items-center">
+      <div className="min-h-screen flex justify-center items-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600 dark:text-gray-400">Memuat data dashboard...</p>
@@ -350,7 +350,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6 transition-all duration-300">
+    <div className="p-6 space-y-6 transition-all duration-300 bg-gray-50 dark:bg-gray-900 min-h-screen">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -372,10 +372,10 @@ export default function Dashboard() {
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                 timeRange === range
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                  : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600"
               }`}
             >
               {range === "week" ? "Minggu" : range === "month" ? "Bulan" : "Tahun"}
@@ -392,7 +392,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className={`${card.bgColor} rounded-2xl p-6 transition-all duration-300 hover:shadow-lg`}
+            className={`${card.bgColor} rounded-2xl p-6 transition-all duration-300 hover:shadow-lg border border-gray-200 dark:border-gray-700`}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -420,7 +420,7 @@ export default function Dashboard() {
           transition={{ delay: 0.3 }}
           className={`rounded-2xl p-6 transition-all duration-300 ${
             theme === "dark" ? "bg-gray-800" : "bg-white"
-          } shadow-lg`}
+          } shadow-lg border border-gray-200 dark:border-gray-700`}
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -488,7 +488,7 @@ export default function Dashboard() {
           transition={{ delay: 0.4 }}
           className={`rounded-2xl p-6 transition-all duration-300 ${
             theme === "dark" ? "bg-gray-800" : "bg-white"
-          } shadow-lg`}
+          } shadow-lg border border-gray-200 dark:border-gray-700`}
         >
           <h3 className="text-lg font-semibold mb-6 text-gray-800 dark:text-white">
             Penjualan per Kategori
@@ -532,7 +532,7 @@ export default function Dashboard() {
           transition={{ delay: 0.5 }}
           className={`rounded-2xl p-6 transition-all duration-300 ${
             theme === "dark" ? "bg-gray-800" : "bg-white"
-          } shadow-lg lg:col-span-2`}
+          } shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2`}
         >
           <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
             Order Terbaru
@@ -542,11 +542,11 @@ export default function Dashboard() {
               recentOrders.map((order, index) => (
                 <div
                   key={order.id || index}
-                  className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700 transition-colors duration-200"
+                  className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-700 transition-colors duration-200 hover:bg-gray-100 dark:hover:bg-gray-600"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                      <Coffee className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                      <Coffee className="w-5 h-5 text-white" />
                     </div>
                     <div>
                       <p className="font-medium text-gray-800 dark:text-white">
@@ -583,27 +583,27 @@ export default function Dashboard() {
           transition={{ delay: 0.6 }}
           className={`rounded-2xl p-6 transition-all duration-300 ${
             theme === "dark" ? "bg-gray-800" : "bg-white"
-          } shadow-lg`}
+          } shadow-lg border border-gray-200 dark:border-gray-700`}
         >
           <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
             Quick Stats
           </h3>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
               <span className="text-sm text-blue-700 dark:text-blue-300">Order Rate</span>
               <span className="font-semibold text-blue-600 dark:text-blue-400">
                 {Math.round((stats.totalOrders / 30) * 100)}/hari
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
               <span className="text-sm text-green-700 dark:text-green-300">Avg. Order Value</span>
               <span className="font-semibold text-green-600 dark:text-green-400">
                 {formatCurrency(stats.avgOrderValue)}
               </span>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20">
-              <span className="text-sm text-amber-700 dark:text-amber-300">Waktu Penyajian</span>
-              <span className="font-semibold text-amber-600 dark:text-amber-400">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+              <span className="text-sm text-orange-700 dark:text-orange-300">Waktu Penyajian</span>
+              <span className="font-semibold text-orange-600 dark:text-orange-400">
                 {stats.completionTime}
               </span>
             </div>

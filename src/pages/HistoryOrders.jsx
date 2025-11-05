@@ -14,11 +14,13 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Loader
+  Loader,
+  History
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTheme } from "../context/ThemeContext";
 import { ordersAPI } from '../services/api';
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function HistoryOrders() {
   const { theme } = useTheme();
@@ -32,6 +34,8 @@ export default function HistoryOrders() {
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState(null);
 
   // 🔥 LOAD HISTORY ORDERS DARI DATABASE
   useEffect(() => {
@@ -74,7 +78,6 @@ export default function HistoryOrders() {
       try {
         const stored = JSON.parse(localStorage.getItem("ordersDone")) || [];
         setDoneOrders(stored);
-        console.log('🔄 Using localStorage fallback for history orders');
       } catch (localError) {
         console.error('❌ Juga gagal baca localStorage:', localError);
       }
@@ -131,8 +134,6 @@ export default function HistoryOrders() {
 
   // 🔥 DELETE ORDER DARI DATABASE
   const handleDelete = async (id) => {
-    if (!window.confirm("Yakin hapus riwayat pesanan ini?")) return;
-    
     setDeleting(true);
     try {
       console.log('🗑️ Deleting order from database:', id);
@@ -153,14 +154,14 @@ export default function HistoryOrders() {
       setDoneOrders(updated);
     } finally {
       setDeleting(false);
+      setShowDeleteModal(false);
+      setOrderToDelete(null);
     }
   };
 
   // 🔥 BULK DELETE ORDERS DARI DATABASE
   const handleBulkDelete = async () => {
     if (selectedOrders.size === 0) return;
-    
-    if (!window.confirm(`Yakin hapus ${selectedOrders.size} riwayat pesanan?`)) return;
     
     setDeleting(true);
     try {
@@ -250,7 +251,8 @@ export default function HistoryOrders() {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
-      currency: 'IDR'
+      currency: 'IDR',
+      minimumFractionDigits: 0
     }).format(amount);
   };
 
@@ -258,23 +260,15 @@ export default function HistoryOrders() {
     return filteredOrders.reduce((sum, order) => sum + order.totalHarga, 0);
   };
 
-  const getOrdersCountByDate = () => {
-    const countByDate = {};
-    filteredOrders.forEach(order => {
-      countByDate[order.tanggal] = (countByDate[order.tanggal] || 0) + 1;
-    });
-    return countByDate;
-  };
-
   // Loading state
   if (loading) {
     return (
-      <div className={`min-h-screen flex justify-center items-center transition-colors duration-300 ${
-        theme === "dark" ? "bg-gray-900" : "bg-gray-50"
-      }`}>
+      <div className="min-h-screen flex justify-center items-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <Loader className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
-          <p className={`text-lg ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Loader className="w-8 h-8 text-white animate-spin" />
+          </div>
+          <p className="text-lg font-semibold text-gray-600 dark:text-gray-400">
             Memuat riwayat pesanan...
           </p>
         </div>
@@ -283,9 +277,7 @@ export default function HistoryOrders() {
   }
 
   return (
-    <div className={`min-h-screen p-6 transition-colors duration-300 ${
-      theme === "dark" ? "bg-gray-900" : "bg-gray-50"
-    }`}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 transition-colors duration-300">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -293,24 +285,29 @@ export default function HistoryOrders() {
         className="mb-8"
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              📜 Riwayat Pesanan Selesai
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Lacak semua pesanan yang telah diselesaikan
-            </p>
+          <div className="flex items-center gap-4 mb-6 lg:mb-0">
+            <div className="w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+              <History className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+                Riwayat Pesanan Selesai
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Lacak semua pesanan yang telah diselesaikan
+              </p>
+            </div>
           </div>
           
           {/* Stats */}
-          <div className="flex gap-6 mt-4 lg:mt-0">
-            <div className="text-center">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 text-center border border-gray-200 dark:border-gray-700">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {filteredOrders.length}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Pesanan</p>
             </div>
-            <div className="text-center">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 text-center border border-gray-200 dark:border-gray-700">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(getTotalRevenue())}
               </p>
@@ -325,9 +322,7 @@ export default function HistoryOrders() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className={`rounded-2xl p-6 mb-6 transition-colors duration-300 ${
-          theme === "dark" ? "bg-gray-800 shadow-lg" : "bg-white shadow-lg"
-        }`}
+        className="rounded-2xl shadow-lg p-6 mb-6 transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
       >
         <div className="flex flex-col lg:flex-row gap-4 items-center">
           {/* Search */}
@@ -338,11 +333,7 @@ export default function HistoryOrders() {
               placeholder="Cari berdasarkan meja, tanggal, atau menu..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "dark"
-                  ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                  : "bg-white border-gray-300 text-gray-800"
-              }`}
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
 
@@ -351,11 +342,7 @@ export default function HistoryOrders() {
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "dark"
-                  ? "bg-gray-700 border-gray-600 text-white"
-                  : "bg-white border-gray-300 text-gray-800"
-              }`}
+              className="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
             >
               <option value="all">Semua Tanggal</option>
               <option value="today">Hari Ini</option>
@@ -365,11 +352,7 @@ export default function HistoryOrders() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 ${
-                theme === "dark"
-                  ? "bg-gray-700 border-gray-600 text-white"
-                  : "bg-white border-gray-300 text-gray-800"
-              }`}
+              className="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
             >
               <option value="newest">Terbaru</option>
               <option value="oldest">Terlama</option>
@@ -378,13 +361,15 @@ export default function HistoryOrders() {
               <option value="table">Nama Meja</option>
             </select>
 
-            <button
+            <motion.button
               onClick={exportToCSV}
-              className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors duration-200 flex items-center gap-2"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
             >
               <Download className="w-4 h-4" />
               Export
-            </button>
+            </motion.button>
           </div>
         </div>
 
@@ -402,10 +387,12 @@ export default function HistoryOrders() {
                   {selectedOrders.size} pesanan terpilih
                 </p>
                 <div className="flex gap-2">
-                  <button
+                  <motion.button
                     onClick={handleBulkDelete}
                     disabled={deleting}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    whileHover={{ scale: deleting ? 1 : 1.02 }}
+                    whileTap={{ scale: deleting ? 1 : 0.98 }}
+                    className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {deleting ? (
                       <Loader className="w-4 h-4 animate-spin" />
@@ -413,7 +400,7 @@ export default function HistoryOrders() {
                       <Trash2 className="w-4 h-4" />
                     )}
                     Hapus yang Dipilih
-                  </button>
+                  </motion.button>
                   <button
                     onClick={() => {
                       setSelectedOrders(new Set());
@@ -435,9 +422,7 @@ export default function HistoryOrders() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className={`rounded-2xl p-12 text-center transition-colors duration-300 ${
-            theme === "dark" ? "bg-gray-800 shadow-lg" : "bg-white shadow-lg"
-          }`}
+          className="rounded-2xl shadow-lg p-12 text-center transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
         >
           <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
@@ -455,14 +440,10 @@ export default function HistoryOrders() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className={`rounded-2xl overflow-hidden transition-colors duration-300 ${
-            theme === "dark" ? "bg-gray-800 shadow-lg" : "bg-white shadow-lg"
-          }`}
+          className="rounded-2xl overflow-hidden transition-colors duration-300 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
         >
           {/* Table Header */}
-          <div className={`p-4 border-b ${
-            theme === "dark" ? "border-gray-700" : "border-gray-200"
-          }`}>
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-4">
               <input
                 type="checkbox"
@@ -488,9 +469,7 @@ export default function HistoryOrders() {
                   transition={{ delay: index * 0.05 }}
                   className={`p-6 transition-colors duration-200 ${
                     selectedOrders.has(order.id)
-                      ? theme === "dark" 
-                        ? "bg-blue-900/20" 
-                        : "bg-blue-50"
+                      ? "bg-blue-50 dark:bg-blue-900/20" 
                       : ""
                   }`}
                 >
@@ -506,8 +485,8 @@ export default function HistoryOrders() {
                     {/* Order Info */}
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-                          <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                          <Users className="w-5 h-5 text-white" />
                         </div>
                         <div>
                           <p className="font-semibold text-gray-800 dark:text-white">
@@ -530,7 +509,7 @@ export default function HistoryOrders() {
                       </div>
 
                       <div className="text-right">
-                        <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                           {formatCurrency(order.totalHarga)}
                         </p>
                         <p className="text-sm text-green-500 dark:text-green-400">
@@ -559,7 +538,10 @@ export default function HistoryOrders() {
                         <Eye className="w-5 h-5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(order.id)}
+                        onClick={() => {
+                          setOrderToDelete(order);
+                          setShowDeleteModal(true);
+                        }}
                         disabled={deleting}
                         className="p-2 text-red-600 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Hapus"
@@ -582,9 +564,7 @@ export default function HistoryOrders() {
                         exit={{ opacity: 0, height: 0 }}
                         className="mt-4 pl-14"
                       >
-                        <div className={`p-4 rounded-xl ${
-                          theme === "dark" ? "bg-gray-700" : "bg-gray-50"
-                        }`}>
+                        <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
                           <h4 className="font-semibold text-gray-800 dark:text-white mb-3">
                             Items Pesanan:
                           </h4>
@@ -625,21 +605,19 @@ export default function HistoryOrders() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 p-4 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={`rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transition-colors duration-300 ${
-                theme === "dark" ? "bg-gray-800" : "bg-white"
-              }`}
+              className="rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
             >
               {/* Modal Header */}
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
                       <FileText className="w-6 h-6 text-white" />
                     </div>
                     <div>
@@ -653,7 +631,7 @@ export default function HistoryOrders() {
                   </div>
                   <button
                     onClick={() => setSelectedOrder(null)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
                   >
                     <X className="w-5 h-5 text-gray-500" />
                   </button>
@@ -708,7 +686,7 @@ export default function HistoryOrders() {
                       </div>
                       <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
                         <span>Total:</span>
-                        <span className="text-green-600 dark:text-green-400">
+                        <span className="text-blue-600 dark:text-blue-400">
                           {formatCurrency(selectedOrder.totalHarga)}
                         </span>
                       </div>
@@ -724,9 +702,7 @@ export default function HistoryOrders() {
                     {selectedOrder.items.map((item, i) => (
                       <div
                         key={i}
-                        className={`p-3 rounded-xl ${
-                          theme === "dark" ? "bg-gray-700" : "bg-gray-50"
-                        }`}
+                        className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -759,21 +735,50 @@ export default function HistoryOrders() {
 
               {/* Modal Footer */}
               <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-                <button
+                <motion.button
                   onClick={() => setSelectedOrder(null)}
-                  className={`w-full py-3 px-6 rounded-xl font-semibold transition-colors duration-200 ${
-                    theme === "dark"
-                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600"
                 >
                   Tutup
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        show={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setOrderToDelete(null);
+        }}
+        onConfirm={() => handleDelete(orderToDelete?.id)}
+        message={
+          <div className="text-center">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Hapus Riwayat Pesanan?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Yakin ingin menghapus riwayat pesanan untuk meja{" "}
+              <span className="font-semibold text-red-600 dark:text-red-400">
+                {orderToDelete?.namaMeja}
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
+            </p>
+          </div>
+        }
+        confirmText={deleting ? "Menghapus..." : "Ya, Hapus"}
+        cancelText="Batal"
+        loading={deleting}
+        confirmColor="red"
+      />
     </div>
   );
 }

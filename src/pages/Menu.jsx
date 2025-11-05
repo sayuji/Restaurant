@@ -13,13 +13,16 @@ import {
   DollarSign,
   FileText,
   Grid,
-  List
+  List,
+  Loader,
+  Package
 } from "lucide-react";
 import CategoryModal from "../components/CategoryModal";
 import ConfirmModal from "../components/ConfirmModal";
 import MenuList from "../components/MenuList";
 import { useTheme } from "../context/ThemeContext";
 import { menuAPI } from '../services/api';
+import toast from "react-hot-toast";
 
 export default function Menu() {
   const { theme } = useTheme();
@@ -49,6 +52,8 @@ export default function Menu() {
   const [menuToDelete, setMenuToDelete] = useState(null);
   const [viewMode, setViewMode] = useState("grid");
   const [sortBy, setSortBy] = useState("name");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const itemsPerPage = viewMode === "grid" ? 8 : 10;
 
@@ -68,10 +73,13 @@ export default function Menu() {
 
   const loadMenusFromBackend = async () => {
     try {
+      setLoading(true);
       const menusData = await menuAPI.getAll();
       setMenus(menusData);
+      toast.success("Data menu berhasil dimuat");
     } catch (error) {
       console.error('Gagal memuat menu dari backend:', error);
+      toast.error("Gagal memuat data menu");
       try {
         const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
         if (Array.isArray(savedMenus)) {
@@ -80,6 +88,8 @@ export default function Menu() {
       } catch (localError) {
         console.error('Juga gagal baca localStorage:', localError);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -135,6 +145,9 @@ export default function Menu() {
       setNewCategory("");
       setShowCategoryModal(false);
       localStorage.setItem("categories", JSON.stringify(updatedCategories));
+      toast.success(`Kategori "${newCategory}" berhasil ditambahkan`);
+    } else {
+      toast.error("Kategori sudah ada atau tidak valid");
     }
   };
 
@@ -144,11 +157,13 @@ export default function Menu() {
     
     if (!file.type.startsWith('image/')) {
       setErrors({ ...errors, image: "File harus berupa gambar" });
+      toast.error("File harus berupa gambar (JPG, PNG, etc)");
       return;
     }
     
     if (file.size > 5 * 1024 * 1024) {
       setErrors({ ...errors, image: "Ukuran gambar maksimal 5MB" });
+      toast.error("Ukuran gambar maksimal 5MB");
       return;
     }
 
@@ -160,6 +175,7 @@ export default function Menu() {
         image: reader.result
       });
       setErrors({ ...errors, image: "" });
+      toast.success("Gambar berhasil diupload");
     };
     reader.readAsDataURL(file);
   };
@@ -196,7 +212,12 @@ export default function Menu() {
     }
 
     setErrors(tempErrors);
-    if (hasError) return;
+    if (hasError) {
+      toast.error("Harap lengkapi semua field yang wajib diisi");
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const formData = new FormData();
@@ -213,9 +234,11 @@ export default function Menu() {
       if (form.id) {
         result = await menuAPI.update(form.id, formData);
         setMenus(menus.map((m) => (m.id === form.id ? result : m)));
+        toast.success(`Menu "${form.name}" berhasil diupdate`);
       } else {
         result = await menuAPI.create(formData);
         setMenus([...menus, result]);
+        toast.success(`Menu "${form.name}" berhasil ditambahkan`);
       }
 
       // Reset form
@@ -232,7 +255,9 @@ export default function Menu() {
       
     } catch (error) {
       console.error('Gagal menyimpan menu:', error);
-      alert('Gagal menyimpan menu: ' + error.message);
+      toast.error(`Gagal menyimpan menu: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -242,25 +267,45 @@ export default function Menu() {
       imageFile: null
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+    toast.success(`Mengedit menu "${menu.name}"`);
   };
 
   const handleDeleteMenu = (id) => {
-    setMenuToDelete(id);
+    const menu = menus.find(m => m.id === id);
+    setMenuToDelete({ id, name: menu?.name });
     setShowConfirm(true);
   };
 
   const confirmDelete = async () => {
+    if (!menuToDelete) return;
+    
     try {
-      await menuAPI.delete(menuToDelete);
-      const updated = menus.filter((m) => m.id !== menuToDelete);
+      await menuAPI.delete(menuToDelete.id);
+      const updated = menus.filter((m) => m.id !== menuToDelete.id);
       setMenus(updated);
-      setShowConfirm(false);
-      setMenuToDelete(null);
+      toast.success(`Menu "${menuToDelete.name}" berhasil dihapus`);
     } catch (error) {
       console.error('Gagal menghapus menu:', error);
-      alert('Gagal menghapus menu dari server');
+      toast.error(`Gagal menghapus menu "${menuToDelete.name}"`);
+    } finally {
+      setShowConfirm(false);
+      setMenuToDelete(null);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Package className="w-8 h-8 text-white" />
+          </div>
+          <Loader className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Memuat data menu...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 transition-colors duration-300">
@@ -271,22 +316,27 @@ export default function Menu() {
         className="mb-8"
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
-              🍽️ Manajemen Menu
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Kelola menu makanan dan minuman restoran Anda
-            </p>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
+              <Package className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+                Manajemen Menu
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Kelola menu makanan dan minuman restoran Anda
+              </p>
+            </div>
           </div>
           
           {/* Stats */}
-          <div className="flex flex-wrap gap-4 mt-4 lg:mt-0">
-            <div className="text-center">
+          <div className="flex flex-wrap gap-6 mt-4 lg:mt-0">
+            <div className="text-center bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalMenus}</p>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Menu</p>
             </div>
-            <div className="text-center">
+            <div className="text-center bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700">
               <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.totalCategories}</p>
               <p className="text-sm text-gray-600 dark:text-gray-400">Kategori</p>
             </div>
@@ -299,14 +349,22 @@ export default function Menu() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className={`rounded-2xl shadow-lg p-6 mb-8 transition-colors duration-300 ${
-          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-        }`}
+        className="rounded-2xl shadow-lg p-6 mb-8 transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-            {form.id ? "✏️ Edit Menu" : "➕ Tambah Menu Baru"}
-          </h2>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+              {form.id ? <Edit3 className="w-5 h-5 text-white" /> : <Plus className="w-5 h-5 text-white" />}
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                {form.id ? "Edit Menu" : "Tambah Menu Baru"}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {form.id ? "Perbarui informasi menu" : "Tambahkan menu baru ke katalog"}
+              </p>
+            </div>
+          </div>
           {form.id && (
             <button
               onClick={() => setForm({
@@ -318,7 +376,7 @@ export default function Menu() {
                 image: null,
                 imageFile: null,
               })}
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600"
             >
               Batalkan Edit
             </button>
@@ -340,13 +398,9 @@ export default function Menu() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                   errors.name 
-                    ? 'border-red-500 dark:border-red-400' 
-                    : 'border-gray-300 dark:border-gray-600'
-                } ${
-                  theme === 'dark' 
-                    ? 'bg-gray-700 text-white placeholder-gray-400' 
-                    : 'bg-white text-gray-800'
-                }`}
+                    ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20' 
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
+                } text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400`}
               />
               {errors.name && (
                 <p className="text-red-500 dark:text-red-400 text-sm mt-2">{errors.name}</p>
@@ -367,13 +421,9 @@ export default function Menu() {
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                   className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                     errors.price 
-                      ? 'border-red-500 dark:border-red-400' 
-                      : 'border-gray-300 dark:border-gray-600'
-                  } ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 text-white placeholder-gray-400' 
-                      : 'bg-white text-gray-800'
-                  }`}
+                      ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20' 
+                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
+                  } text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400`}
                 />
               </div>
               {errors.price && (
@@ -397,7 +447,9 @@ export default function Menu() {
                     styles={{
                       control: (base, state) => ({
                         ...base,
-                        backgroundColor: theme === "dark" ? "#374151" : "white",
+                        backgroundColor: errors.category 
+                          ? (theme === "dark" ? "#1f2937" : "#fef2f2")
+                          : (theme === "dark" ? "#374151" : "white"),
                         borderColor: errors.category 
                           ? (theme === "dark" ? "#f87171" : "#ef4444")
                           : (state.isFocused 
@@ -443,7 +495,7 @@ export default function Menu() {
                 <button
                   type="button"
                   onClick={() => setShowCategoryModal(true)}
-                  className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors flex items-center gap-2"
+                  className="px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -470,13 +522,9 @@ export default function Menu() {
                   rows={4}
                   className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none ${
                     errors.description 
-                      ? 'border-red-500 dark:border-red-400' 
-                      : 'border-gray-300 dark:border-gray-600'
-                  } ${
-                    theme === 'dark' 
-                      ? 'bg-gray-700 text-white placeholder-gray-400' 
-                      : 'bg-white text-gray-800'
-                  }`}
+                      ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20' 
+                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
+                  } text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400`}
                 />
               </div>
               {errors.description && (
@@ -489,7 +537,11 @@ export default function Menu() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Gambar Menu *
               </label>
-              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center transition-colors duration-200 hover:border-blue-500 dark:hover:border-blue-400">
+              <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer ${
+                errors.image 
+                  ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20' 
+                  : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50'
+              }`}>
                 <input
                   type="file"
                   accept="image/*"
@@ -497,13 +549,13 @@ export default function Menu() {
                   className="hidden"
                   id="image-upload"
                 />
-                <label htmlFor="image-upload" className="cursor-pointer">
+                <label htmlFor="image-upload" className="cursor-pointer block">
                   {form.image ? (
                     <div className="space-y-3">
                       <img
                         src={form.image}
                         alt="Preview"
-                        className="w-32 h-32 object-cover rounded-lg mx-auto border"
+                        className="w-32 h-32 object-cover rounded-lg mx-auto border-2 border-blue-500 shadow-md"
                       />
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         Klik untuk mengganti gambar
@@ -532,12 +584,24 @@ export default function Menu() {
 
           {/* Submit Button */}
           <div className="lg:col-span-2 pt-4">
-            <button
+            <motion.button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-4 px-6 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              disabled={saving}
+              whileHover={{ scale: saving ? 1 : 1.02 }}
+              whileTap={{ scale: saving ? 1 : 0.98 }}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white py-4 px-6 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {form.id ? "💾 Simpan Perubahan" : "➕ Tambah Menu"}
-            </button>
+              {saving ? (
+                <>
+                  <Loader className="w-5 h-5 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : form.id ? (
+                "💾 Simpan Perubahan"
+              ) : (
+                "➕ Tambah Menu"
+              )}
+            </motion.button>
           </div>
         </form>
       </motion.div>
@@ -547,9 +611,7 @@ export default function Menu() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className={`rounded-2xl shadow-lg p-6 mb-6 transition-colors duration-300 ${
-          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-        }`}
+        className="rounded-2xl shadow-lg p-6 mb-6 transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           {/* Search */}
@@ -557,14 +619,10 @@ export default function Menu() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Cari menu..."
+              placeholder="Cari menu berdasarkan nama, deskripsi, atau kategori..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-10 pr-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                theme === 'dark' 
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                  : 'bg-white border-gray-300 text-gray-800'
-              }`}
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
 
@@ -573,11 +631,7 @@ export default function Menu() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                theme === 'dark' 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-800'
-              }`}
+              className="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
             >
               <option value="all">Semua Kategori</option>
               {categories.map(cat => (
@@ -588,11 +642,7 @@ export default function Menu() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className={`px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                theme === 'dark' 
-                  ? 'bg-gray-700 border-gray-600 text-white' 
-                  : 'bg-white border-gray-300 text-gray-800'
-              }`}
+              className="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
             >
               <option value="name">Urutkan: Nama</option>
               <option value="price">Urutkan: Harga</option>
@@ -600,29 +650,23 @@ export default function Menu() {
             </select>
 
             {/* View Toggle */}
-            <div className={`flex rounded-xl border overflow-hidden ${
-              theme === 'dark' ? 'border-gray-600' : 'border-gray-300'
-            }`}>
+            <div className="flex rounded-xl border border-gray-300 dark:border-gray-600 overflow-hidden bg-white dark:bg-gray-700">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-3 transition-colors ${
+                className={`p-3 transition-all duration-200 ${
                   viewMode === "grid"
-                    ? 'bg-blue-600 text-white'
-                    : theme === 'dark'
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-inner'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
               >
                 <Grid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-3 transition-colors ${
+                className={`p-3 transition-all duration-200 ${
                   viewMode === "list"
-                    ? 'bg-blue-600 text-white'
-                    : theme === 'dark'
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-inner'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -637,9 +681,7 @@ export default function Menu() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className={`rounded-2xl shadow-lg overflow-hidden transition-colors duration-300 ${
-          theme === 'dark' ? 'bg-gray-800' : 'bg-white'
-        }`}
+        className="rounded-2xl shadow-lg overflow-hidden transition-colors duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
       >
         <MenuList
           menus={paginatedMenus}
@@ -651,22 +693,20 @@ export default function Menu() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className={`text-sm ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                Menampilkan {paginatedMenus.length} dari {filteredMenus.length} menu
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan <span className="font-semibold">{paginatedMenus.length}</span> dari <span className="font-semibold">{filteredMenus.length}</span> menu
               </p>
               
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
-                  className={`px-4 py-2 rounded-lg border transition-colors ${
+                  className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
                     currentPage === 1
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500'
+                      ? 'bg-gray-100 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 hover:border-gray-400 dark:hover:border-gray-400'
                   }`}
                 >
                   Previous
@@ -677,9 +717,9 @@ export default function Menu() {
                     <button
                       key={i}
                       onClick={() => setCurrentPage(i + 1)}
-                      className={`w-10 h-10 rounded-lg border font-medium transition-colors ${
+                      className={`w-10 h-10 rounded-lg border font-medium transition-all duration-200 ${
                         currentPage === i + 1
-                          ? 'bg-blue-600 text-white border-blue-600'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-blue-600 shadow-lg'
                           : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500'
                       }`}
                     >
@@ -691,10 +731,10 @@ export default function Menu() {
                 <button
                   onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className={`px-4 py-2 rounded-lg border transition-colors ${
+                  className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
                     currentPage === totalPages
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                      : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500'
+                      ? 'bg-gray-100 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 hover:border-gray-400 dark:hover:border-gray-400'
                   }`}
                 >
                   Next
@@ -718,7 +758,7 @@ export default function Menu() {
         show={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={confirmDelete}
-        message="Yakin ingin menghapus menu ini? Tindakan ini tidak dapat dibatalkan."
+        message={`Yakin ingin menghapus menu "${menuToDelete?.name}"? Tindakan ini tidak dapat dibatalkan.`}
       />
     </div>
   );
