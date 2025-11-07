@@ -56,7 +56,7 @@ app.use(express.json({ limit: '10mb' }));
 // Test route
 app.get('/api', (req, res) => {
   res.json({ 
-    message: 'Halo bang! Backend RESTAURANT dengan File Upload udah jalan! 🚀',
+    message: 'Halo bang! Backend RESTAURANT dengan Multi-Restaurant System udah jalan! 🚀',
     status: 'OK'
   });
 });
@@ -65,10 +65,10 @@ app.get('/api', (req, res) => {
 // 🔐 AUTHENTICATION MIDDLEWARE & ROUTES
 // ==========================================
 
-// 🔐 VERIFY TOKEN MIDDLEWARE
+// 🔐 ENHANCED AUTHENTICATION MIDDLEWARE - PASTIKAN SEPERTI INI
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({ 
@@ -77,19 +77,28 @@ const authenticateToken = (req, res, next) => {
     });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
       return res.status(403).json({ 
         success: false, 
         message: 'Token tidak valid' 
       });
     }
-    req.user = user;
+    
+    // ✅ PASTIKAN baca restaurantId dari token, BUKAN hardcode
+    req.user = {
+      userId: decoded.userId,
+      username: decoded.username, 
+      role: decoded.role,
+      restaurantId: decoded.restaurantId // ← INI DARI TOKEN, BUKAN HARCODE!
+    };
+    
+    console.log('🔐 Auth successful - User:', req.user.username, 'Restaurant:', req.user.restaurantId);
     next();
   });
 };
 
-// 🔐 LOGIN ROUTE
+// 🔐 LOGIN ROUTE - UPDATE INI!
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -126,18 +135,19 @@ app.post('/api/auth/login', async (req, res) => {
       [user.id]
     );
 
-    // Generate JWT token
+    // ✅ FIX: Include restaurant_id in JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
         username: user.username, 
-        role: user.role 
+        role: user.role,
+        restaurantId: user.restaurant_id // ← INI YANG PERLU DITAMBAH!
       },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    console.log('✅ Login successful for user:', username);
+    console.log('✅ Login successful for user:', username, 'Restaurant:', user.restaurant_id);
     
     res.json({
       success: true,
@@ -148,7 +158,8 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         role: user.role,
         fullName: user.full_name,
-        email: user.email
+        email: user.email,
+        restaurantId: user.restaurant_id
       }
     });
 
@@ -157,6 +168,91 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Terjadi kesalahan saat login' 
+    });
+  }
+});
+
+// ==========================================
+// 🏪 RESTAURANT MANAGEMENT ROUTES
+// ==========================================
+
+// 🔐 GET ALL RESTAURANTS FOR DROPDOWN
+app.get('/api/restaurants', authenticateToken, async (req, res) => {
+  try {
+    // Hanya admin yang bisa akses
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Hanya admin yang bisa mengakses.'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT id, name, address, phone 
+      FROM restaurants 
+      WHERE is_active = true
+      ORDER BY name ASC
+    `);
+
+    console.log('🏪 GET /api/restaurants - Total:', result.rows.length);
+    
+    res.json({
+      success: true,
+      restaurants: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Get restaurants error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat mengambil data restaurants'
+    });
+  }
+});
+
+// 🔐 CREATE NEW RESTAURANT (ADMIN ONLY)
+app.post('/api/restaurants', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Hanya admin yang bisa menambah restaurant baru'
+      });
+    }
+
+    const { name, address, phone } = req.body;
+    
+    console.log('➕ POST /api/restaurants - Data:', { name, address, phone });
+
+    // Validasi input
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nama restaurant harus diisi'
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO restaurants (name, address, phone) 
+       VALUES ($1, $2, $3) 
+       RETURNING *`,
+      [name, address || null, phone || null]
+    );
+
+    const newRestaurant = result.rows[0];
+    
+    console.log('✅ Restaurant created - ID:', newRestaurant.id);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Restaurant berhasil dibuat',
+      restaurant: newRestaurant
+    });
+
+  } catch (error) {
+    console.error('❌ Create restaurant error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Terjadi kesalahan saat membuat restaurant'
     });
   }
 });
@@ -178,17 +274,20 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
     const result = await pool.query(`
       SELECT 
-        id, 
-        username, 
-        role, 
-        full_name, 
-        email, 
-        is_active, 
-        last_login, 
-        created_at,
-        updated_at
-      FROM users 
-      ORDER BY created_at DESC
+        u.id, 
+        u.username, 
+        u.role, 
+        u.full_name, 
+        u.email, 
+        u.is_active, 
+        u.last_login, 
+        u.created_at,
+        u.updated_at,
+        u.restaurant_id,
+        r.name as restaurant_name
+      FROM users u
+      LEFT JOIN restaurants r ON u.restaurant_id = r.id
+      ORDER BY u.created_at DESC
     `);
 
     console.log('📋 GET /api/users - Total users:', result.rows.length);
@@ -208,23 +307,28 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
 // 🔐 REGISTER NEW USER
 app.post('/api/auth/register', authenticateToken, async (req, res) => {
+  const client = await pool.connect(); // ✅ TAMBAH INI UNTUK TRANSACTION
+  
   try {
+    await client.query('BEGIN'); // ✅ START TRANSACTION
+
     // Cuma admin yang bisa register user baru
     if (req.user.role !== 'admin') {
+      await client.query('ROLLBACK');
       return res.status(403).json({
         success: false,
         message: 'Hanya admin yang bisa menambah user baru'
       });
     }
 
-    const { username, password, role, fullName, email } = req.body;
+    const { username, password, role, fullName, email, restaurantId } = req.body;
     
-    console.log('👤 [DEBUG] Register attempt by admin:', req.user.username, 'for user:', username);
-    console.log('📝 [DEBUG] Request data:', { username, role, fullName, email });
+    console.log('👤 Register attempt by admin:', req.user.username, 'for user:', username);
+    console.log('📝 Request data:', { username, role, fullName, email, restaurantId });
 
     // Validasi input
     if (!username || !password || !role) {
-      console.log('❌ [DEBUG] Validation failed - missing fields');
+      await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
         message: 'Username, password, dan role harus diisi'
@@ -234,7 +338,7 @@ app.post('/api/auth/register', authenticateToken, async (req, res) => {
     // Validasi role
     const validRoles = ['admin', 'manager', 'kitchen', 'cashier', 'staff'];
     if (!validRoles.includes(role)) {
-      console.log('❌ [DEBUG] Invalid role:', role);
+      await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
         message: 'Role tidak valid'
@@ -242,37 +346,59 @@ app.post('/api/auth/register', authenticateToken, async (req, res) => {
     }
 
     // Cek apakah username sudah ada
-    console.log('🔍 [DEBUG] Checking if username exists:', username);
-    const existingUser = await pool.query(
+    const existingUser = await client.query(
       'SELECT id FROM users WHERE username = $1',
       [username]
     );
 
     if (existingUser.rows.length > 0) {
-      console.log('❌ [DEBUG] Username already exists:', username);
+      await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
         message: 'Username sudah digunakan'
       });
     }
 
+    // Validasi restaurantId
+    if (!restaurantId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Restaurant harus dipilih'
+      });
+    }
+
+    // Cek jika restaurant exists
+    const restaurantCheck = await client.query(
+      'SELECT id FROM restaurants WHERE id = $1',
+      [restaurantId]
+    );
+
+    if (restaurantCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Restaurant tidak valid'
+      });
+    }
+
     // Hash password
-    console.log('🔐 [DEBUG] Hashing password...');
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Insert user baru ke database
-    console.log('💾 [DEBUG] Inserting new user to database...');
-    const result = await pool.query(
-      `INSERT INTO users (username, password_hash, role, full_name, email, is_active) 
-       VALUES ($1, $2, $3, $4, $5, $6) 
-       RETURNING id, username, role, full_name, email, is_active, created_at`,
-      [username, hashedPassword, role, fullName || null, email || null, true]
+    const result = await client.query(
+      `INSERT INTO users (username, password_hash, role, full_name, email, restaurant_id, is_active) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       RETURNING id, username, role, full_name, email, restaurant_id, is_active, created_at`,
+      [username, hashedPassword, role, fullName || null, email || null, restaurantId, true]
     );
+
+    await client.query('COMMIT'); // ✅ COMMIT TRANSACTION
 
     const newUser = result.rows[0];
     
-    console.log('✅ [DEBUG] User registered successfully:', newUser);
+    console.log('✅ User registered successfully:', newUser);
     
     res.status(201).json({
       success: true,
@@ -283,17 +409,21 @@ app.post('/api/auth/register', authenticateToken, async (req, res) => {
         role: newUser.role,
         fullName: newUser.full_name,
         email: newUser.email,
+        restaurantId: newUser.restaurant_id,
         isActive: newUser.is_active,
         createdAt: newUser.created_at
       }
     });
 
   } catch (error) {
-    console.error('❌ [DEBUG] Register error details:', error);
+    await client.query('ROLLBACK'); // ✅ ROLLBACK JIKA ERROR
+    console.error('❌ Register error:', error);
     res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan saat mendaftarkan user: ' + error.message
     });
+  } finally {
+    client.release(); // ✅ RELEASE CLIENT
   }
 });
 
@@ -308,9 +438,9 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     }
 
     const userId = parseInt(req.params.id);
-    const { username, role, fullName, email, isActive } = req.body;
+    const { username, role, fullName, email, isActive, restaurantId } = req.body;
 
-    console.log('✏️ UPDATE /api/users/' + userId, { username, role, isActive });
+    console.log('✏️ UPDATE /api/users/' + userId, { username, role, isActive, restaurantId });
 
     // Cek jika user exists
     const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
@@ -324,10 +454,10 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     // Update user
     const result = await pool.query(
       `UPDATE users 
-       SET username = $1, role = $2, full_name = $3, email = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6 
-       RETURNING id, username, role, full_name, email, is_active, last_login, created_at, updated_at`,
-      [username, role, fullName || null, email || null, isActive, userId]
+       SET username = $1, role = $2, full_name = $3, email = $4, is_active = $5, restaurant_id = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7 
+       RETURNING id, username, role, full_name, email, is_active, restaurant_id, last_login, created_at, updated_at`,
+      [username, role, fullName || null, email || null, isActive, restaurantId || null, userId]
     );
 
     console.log('✅ User updated - ID:', userId);
@@ -458,7 +588,10 @@ app.put('/api/users/:id/status', authenticateToken, async (req, res) => {
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, username, role, full_name, email, last_login FROM users WHERE id = $1',
+      `SELECT u.id, u.username, u.role, u.full_name, u.email, u.last_login, u.restaurant_id, r.name as restaurant_name
+       FROM users u
+       LEFT JOIN restaurants r ON u.restaurant_id = r.id
+       WHERE u.id = $1`,
       [req.user.userId]
     );
     
@@ -483,13 +616,16 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 📋 MENU ROUTES
+// 📋 MENU ROUTES (WITH RESTAURANT FILTER)
 // ==========================================
 
-// GET all menus
+// GET all menus - FILTER BY RESTAURANT
 app.get('/api/menu', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM menus ORDER BY created_at DESC');
+    const result = await pool.query(
+      'SELECT * FROM menus WHERE restaurant_id = $1 ORDER BY created_at DESC',
+      [req.user.restaurantId] // ✅ Filter by restaurant
+    );
     
     const menusWithCategoryObject = result.rows.map(menu => ({
       ...menu,
@@ -499,7 +635,7 @@ app.get('/api/menu', authenticateToken, async (req, res) => {
       } : null
     }));
     
-    console.log('📦 GET /api/menu - Total:', menusWithCategoryObject.length);
+    console.log('📦 GET /api/menu - Restaurant:', req.user.restaurantId, 'Total:', menusWithCategoryObject.length);
     res.json(menusWithCategoryObject);
   } catch (error) {
     console.error('❌ Error fetching menus:', error);
@@ -507,12 +643,12 @@ app.get('/api/menu', authenticateToken, async (req, res) => {
   }
 });
 
-// POST create new menu
+// POST create new menu - AUTO SET RESTAURANT_ID
 app.post('/api/menu', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const { name, price, description, category } = req.body;
     
-    console.log('➕ POST /api/menu - Data received:', {
+    console.log('➕ POST /api/menu - Restaurant:', req.user.restaurantId, 'Data:', {
       name, price, category: category?.value, hasImage: !!req.file
     });
 
@@ -535,10 +671,10 @@ app.post('/api/menu', authenticateToken, upload.single('image'), async (req, res
     }
 
     const result = await pool.query(
-      `INSERT INTO menus (name, price, description, category, image) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO menus (name, price, description, category, image, restaurant_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [name, price, description, categoryValue, imagePath]
+      [name, price, description, categoryValue, imagePath, req.user.restaurantId] // ✅ Auto-set restaurant_id
     );
 
     const menuWithCategoryObject = {
@@ -549,7 +685,7 @@ app.post('/api/menu', authenticateToken, upload.single('image'), async (req, res
       } : null
     };
 
-    console.log('✅ Menu created - ID:', menuWithCategoryObject.id);
+    console.log('✅ Menu created - ID:', menuWithCategoryObject.id, 'Restaurant:', req.user.restaurantId);
     res.status(201).json(menuWithCategoryObject);
   } catch (error) {
     console.error('❌ Error creating menu:', error);
@@ -562,17 +698,28 @@ app.post('/api/menu', authenticateToken, upload.single('image'), async (req, res
   }
 });
 
-// PUT update menu
+// PUT update menu - VERIFY RESTAURANT OWNERSHIP
 app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
     const { name, price, description, category } = req.body;
     
-    console.log('✏️ PUT /api/menu/' + menuId, { 
+    console.log('✏️ PUT /api/menu/' + menuId, 'Restaurant:', req.user.restaurantId, { 
       name, price, 
       category: typeof category === 'string' ? JSON.parse(category)?.value : category?.value,
       hasNewImage: !!req.file 
     });
+
+    // Cek apakah menu milik restaurant user
+    const menuCheck = await pool.query(
+      'SELECT id, image FROM menus WHERE id = $1 AND restaurant_id = $2',
+      [menuId, req.user.restaurantId]
+    );
+
+    if (menuCheck.rows.length === 0) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Menu not found or access denied' });
+    }
 
     let categoryValue = category;
     if (typeof category === 'string') {
@@ -594,12 +741,13 @@ app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, 
       imageUpdate = ', image = $6';
       queryParams.push(newImagePath);
       
-      const oldMenu = await pool.query('SELECT image FROM menus WHERE id = $1', [menuId]);
-      if (oldMenu.rows[0]?.image && oldMenu.rows[0].image.startsWith('/uploads/')) {
-        const oldImagePath = oldMenu.rows[0].image.substring(1);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-          console.log('🗑️ Old image deleted:', oldImagePath);
+      // Delete old image
+      const oldImagePath = menuCheck.rows[0]?.image;
+      if (oldImagePath && oldImagePath.startsWith('/uploads/')) {
+        const fullOldPath = oldImagePath.substring(1);
+        if (fs.existsSync(fullOldPath)) {
+          fs.unlinkSync(fullOldPath);
+          console.log('🗑️ Old image deleted:', fullOldPath);
         }
       }
     }
@@ -608,9 +756,9 @@ app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, 
       `UPDATE menus 
        SET name = $1, price = $2, description = $3, category = $4, 
            updated_at = CURRENT_TIMESTAMP ${imageUpdate}
-       WHERE id = $5 
+       WHERE id = $5 AND restaurant_id = $6
        RETURNING *`,
-      queryParams
+      [...queryParams, req.user.restaurantId]
     );
 
     if (result.rows.length === 0) {
@@ -628,7 +776,7 @@ app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, 
       } : null
     };
 
-    console.log('✅ Menu updated - ID:', menuId);
+    console.log('✅ Menu updated - ID:', menuId, 'Restaurant:', req.user.restaurantId);
     res.json(menuWithCategoryObject);
   } catch (error) {
     console.error('❌ Error updating menu:', error);
@@ -641,16 +789,20 @@ app.put('/api/menu/:id', authenticateToken, upload.single('image'), async (req, 
   }
 });
 
-// DELETE menu
+// DELETE menu - VERIFY RESTAURANT OWNERSHIP
 app.delete('/api/menu/:id', authenticateToken, async (req, res) => {
   try {
     const menuId = parseInt(req.params.id);
-    console.log('🗑️ DELETE /api/menu/' + menuId);
+    console.log('🗑️ DELETE /api/menu/' + menuId, 'Restaurant:', req.user.restaurantId);
 
-    const menuResult = await pool.query('SELECT image FROM menus WHERE id = $1', [menuId]);
+    // Cek apakah menu milik restaurant user
+    const menuResult = await pool.query(
+      'SELECT image FROM menus WHERE id = $1 AND restaurant_id = $2',
+      [menuId, req.user.restaurantId]
+    );
     
     if (menuResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Menu not found' });
+      return res.status(404).json({ error: 'Menu not found or access denied' });
     }
 
     const imagePath = menuResult.rows[0].image;
@@ -662,9 +814,12 @@ app.delete('/api/menu/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    const result = await pool.query('DELETE FROM menus WHERE id = $1 RETURNING *', [menuId]);
+    const result = await pool.query(
+      'DELETE FROM menus WHERE id = $1 AND restaurant_id = $2 RETURNING *',
+      [menuId, req.user.restaurantId]
+    );
 
-    console.log('✅ Menu deleted - ID:', menuId);
+    console.log('✅ Menu deleted - ID:', menuId, 'Restaurant:', req.user.restaurantId);
     res.json({ message: 'Menu deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting menu:', error);
@@ -673,14 +828,17 @@ app.delete('/api/menu/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 🛒 ORDERS ROUTES
+// 🛒 ORDERS ROUTES (WITH RESTAURANT FILTER)
 // ==========================================
 
-// GET all orders
+// GET all orders - FILTER BY RESTAURANT
 app.get('/api/orders', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-    console.log('📦 GET /api/orders - Total:', result.rows.length);
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE restaurant_id = $1 ORDER BY created_at DESC',
+      [req.user.restaurantId] // ✅ Filter by restaurant
+    );
+    console.log('📦 GET /api/orders - Restaurant:', req.user.restaurantId, 'Total:', result.rows.length);
     res.json(result.rows);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
@@ -688,14 +846,17 @@ app.get('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// GET order by ID
+// GET order by ID - VERIFY RESTAURANT OWNERSHIP
 app.get('/api/orders/:id', authenticateToken, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
-    const result = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE id = $1 AND restaurant_id = $2',
+      [orderId, req.user.restaurantId]
+    );
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ error: 'Order not found or access denied' });
     }
     
     res.json(result.rows[0]);
@@ -705,23 +866,23 @@ app.get('/api/orders/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// CREATE new order
+// CREATE new order - AUTO SET RESTAURANT_ID
 app.post('/api/orders', authenticateToken, async (req, res) => {
   try {
     const { tableId, tableName, items, totalHarga, paymentMethod = 'cash' } = req.body;
     
-    console.log('➕ POST /api/orders - Data received:', {
+    console.log('➕ POST /api/orders - Restaurant:', req.user.restaurantId, 'Data:', {
       tableId, tableName, totalHarga, paymentMethod, items_count: items.length
     });
 
     const result = await pool.query(
-      `INSERT INTO orders (table_id, table_name, items, total_price, payment_method) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO orders (table_id, table_name, items, total_price, payment_method, restaurant_id) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [tableId, tableName, JSON.stringify(items), totalHarga, paymentMethod]
+      [tableId, tableName, JSON.stringify(items), totalHarga, paymentMethod, req.user.restaurantId] // ✅ Auto-set restaurant_id
     );
 
-    console.log('✅ Order created - ID:', result.rows[0].id);
+    console.log('✅ Order created - ID:', result.rows[0].id, 'Restaurant:', req.user.restaurantId);
     res.status(201).json({ 
       success: true, 
       orderId: result.rows[0].id,
@@ -733,24 +894,24 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   }
 });
 
-// UPDATE ORDER STATUS
+// UPDATE ORDER STATUS - VERIFY RESTAURANT OWNERSHIP
 app.put('/api/orders/:id/status', authenticateToken, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const { status } = req.body;
     
-    console.log('✏️ UPDATE /api/orders/' + orderId + '/status - Status:', status);
+    console.log('✏️ UPDATE /api/orders/' + orderId + '/status - Restaurant:', req.user.restaurantId, 'Status:', status);
     
     const result = await pool.query(
-      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [status, orderId]
+      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND restaurant_id = $3 RETURNING *',
+      [status, orderId, req.user.restaurantId]
     );
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ error: 'Order not found or access denied' });
     }
     
-    console.log('✅ Order status updated - ID:', orderId, 'Status:', status);
+    console.log('✅ Order status updated - ID:', orderId, 'Status:', status, 'Restaurant:', req.user.restaurantId);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('❌ Error updating order status:', error);
@@ -758,13 +919,13 @@ app.put('/api/orders/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
-// UPDATE ORDER (FULL UPDATE)
+// UPDATE ORDER (FULL UPDATE) - VERIFY RESTAURANT OWNERSHIP
 app.put('/api/orders/:id', authenticateToken, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const { tableId, tableName, items, totalHarga, status } = req.body;
     
-    console.log('✏️ PUT /api/orders/' + orderId, { 
+    console.log('✏️ PUT /api/orders/' + orderId, 'Restaurant:', req.user.restaurantId, { 
       tableId, tableName, totalHarga, status, items_count: items.length 
     });
     
@@ -772,16 +933,16 @@ app.put('/api/orders/:id', authenticateToken, async (req, res) => {
       `UPDATE orders 
        SET table_id = $1, table_name = $2, items = $3, total_price = $4, status = $5,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $6 
+       WHERE id = $6 AND restaurant_id = $7
        RETURNING *`,
-      [tableId, tableName, JSON.stringify(items), totalHarga, status, orderId]
+      [tableId, tableName, JSON.stringify(items), totalHarga, status, orderId, req.user.restaurantId]
     );
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ error: 'Order not found or access denied' });
     }
     
-    console.log('✅ Order updated - ID:', orderId);
+    console.log('✅ Order updated - ID:', orderId, 'Restaurant:', req.user.restaurantId);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('❌ Error updating order:', error);
@@ -789,19 +950,22 @@ app.put('/api/orders/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// DELETE ORDER
+// DELETE ORDER - VERIFY RESTAURANT OWNERSHIP
 app.delete('/api/orders/:id', authenticateToken, async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
-    console.log('🗑️ DELETE /api/orders/' + orderId);
+    console.log('🗑️ DELETE /api/orders/' + orderId, 'Restaurant:', req.user.restaurantId);
     
-    const result = await pool.query('DELETE FROM orders WHERE id = $1 RETURNING *', [orderId]);
+    const result = await pool.query(
+      'DELETE FROM orders WHERE id = $1 AND restaurant_id = $2 RETURNING *',
+      [orderId, req.user.restaurantId]
+    );
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ error: 'Order not found or access denied' });
     }
     
-    console.log('✅ Order deleted - ID:', orderId);
+    console.log('✅ Order deleted - ID:', orderId, 'Restaurant:', req.user.restaurantId);
     res.json({ message: 'Order deleted successfully' });
   } catch (error) {
     console.error('❌ Error deleting order:', error);
@@ -810,15 +974,16 @@ app.delete('/api/orders/:id', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 🏪 TABLES ROUTES
+// 🏪 TABLES ROUTES (WITH RESTAURANT FILTER)
 // ==========================================
 const tablesRouter = require('./routes/tables');
-app.use('/api/tables', tablesRouter);
+app.use('/api/tables', authenticateToken, tablesRouter); // ✅ Add auth middleware to tables routes
 
 app.listen(PORT, () => {
-  console.log(`🍔 Backend dengan User Management jalan di http://localhost:${PORT}`);
-  console.log(`📱 Database: PostgreSQL - restaurant_db`);
+  console.log(`🍔 Backend dengan Multi-Restaurant System jalan di http://localhost:${PORT}`);
+  console.log(`📱 Database: PostgreSQL - restomaster_db`);
   console.log(`🔐 JWT Secret: ${JWT_SECRET}`);
+  console.log(`🏪 MULTI-RESTAURANT: READY!`);
   console.log(`👥 USER MANAGEMENT: READY! (Admin only)`);
   console.log(`🖼️ File Upload: READY!`);
   console.log(`🔥 AUTH API: READY!`);

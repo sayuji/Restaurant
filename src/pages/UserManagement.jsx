@@ -15,13 +15,15 @@ import {
   Eye,
   EyeOff,
   Save,
-  X
+  X,
+  Building
 } from 'lucide-react';
 import { usersAPI } from '../services/api';
 import Swal from 'sweetalert2';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [restaurants, setRestaurants] = useState([]); // ✅ TAMBAH STATE RESTAURANTS
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -34,11 +36,13 @@ export default function UserManagement() {
     password: '',
     role: 'staff',
     fullName: '',
-    email: ''
+    email: '',
+    restaurantId: '' // ✅ TAMBAH RESTAURANT ID DI FORM
   });
 
   useEffect(() => {
     loadUsers();
+    loadRestaurants(); // ✅ LOAD RESTAURANTS SAAT COMPONENT MOUNT
   }, []);
 
   const loadUsers = async () => {
@@ -51,6 +55,17 @@ export default function UserManagement() {
       Swal.fire('Error', 'Gagal memuat data users', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ TAMBAH FUNCTION LOAD RESTAURANTS
+  const loadRestaurants = async () => {
+    try {
+      const response = await usersAPI.getRestaurants();
+      setRestaurants(response.restaurants);
+    } catch (error) {
+      console.error('Error loading restaurants:', error);
+      Swal.fire('Error', 'Gagal memuat data restaurants', 'error');
     }
   };
 
@@ -79,6 +94,7 @@ export default function UserManagement() {
           role: formData.role,
           fullName: formData.fullName,
           email: formData.email,
+          restaurantId: formData.restaurantId, // ✅ KIRIM RESTAURANT ID
           isActive: true
         });
         Swal.fire('Success', 'User berhasil diupdate', 'success');
@@ -102,7 +118,8 @@ export default function UserManagement() {
       password: '', // Kosongkan password saat edit
       role: user.role,
       fullName: user.full_name || '',
-      email: user.email || ''
+      email: user.email || '',
+      restaurantId: user.restaurant_id || '' // ✅ SET RESTAURANT ID SAAT EDIT
     });
     setShowAddModal(true);
   };
@@ -161,7 +178,8 @@ export default function UserManagement() {
       password: '',
       role: 'staff',
       fullName: '',
-      email: ''
+      email: '',
+      restaurantId: '' // ✅ RESET RESTAURANT ID
     });
     setEditingUser(null);
     setShowAddModal(false);
@@ -187,6 +205,12 @@ export default function UserManagement() {
       staff: 'Staff'
     };
     return labels[role] || role;
+  };
+
+  // ✅ TAMBAH FUNCTION UNTUK GET RESTAURANT NAME
+  const getRestaurantName = (restaurantId) => {
+    const restaurant = restaurants.find(r => r.id === restaurantId);
+    return restaurant ? restaurant.name : 'Unknown Restaurant';
   };
 
   if (loading) {
@@ -284,6 +308,9 @@ export default function UserManagement() {
                   Role
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  Restaurant
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
@@ -327,6 +354,12 @@ export default function UserManagement() {
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(user.role)}`}>
                       <Shield size={12} className="mr-1" />
                       {getRoleLabel(user.role)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                      <Building size={12} className="mr-1" />
+                      {getRestaurantName(user.restaurant_id)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -491,6 +524,26 @@ export default function UserManagement() {
                     <option value="kitchen">Kitchen</option>
                     <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* ✅ TAMBAH DROPDOWN RESTAURANT */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Restaurant *
+                  </label>
+                  <select
+                    value={formData.restaurantId}
+                    onChange={(e) => setFormData({...formData, restaurantId: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
+                  >
+                    <option value="">Pilih Restaurant</option>
+                    {restaurants.map(restaurant => (
+                      <option key={restaurant.id} value={restaurant.id}>
+                        {restaurant.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 

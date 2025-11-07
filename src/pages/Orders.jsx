@@ -278,14 +278,6 @@ export default function Orders() {
                 <p className="text-gray-600 dark:text-gray-400 text-sm">Silakan pilih meja untuk melanjutkan pemesanan</p>
               </div>
             </div>
-            {/* Tombol Kembali */}
-            <button
-              onClick={() => window.location.href = '/tables'}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
-            >
-              <Plus className="w-4 h-4" />
-              Buat Meja
-            </button>
           </div>
         </div>
         

@@ -4,8 +4,8 @@ const pool = require('../config/database');
 
 /**
  * @route   GET /api/tables
- * @desc    Get all tables with optional pagination
- * @access  Public
+ * @desc    Get all tables with optional pagination - FILTER BY RESTAURANT
+ * @access  Private
  * @query   page (number) - Page number (default: 1)
  * @query   limit (number) - Items per page (default: 10, max: 100)
  * @query   status (string) - Filter by status (optional)
@@ -18,20 +18,20 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * limit;
     const { status, search } = req.query;
 
-    // Build dynamic query with filters
-    let whereClause = '';
-    let queryParams = [];
-    let paramCount = 0;
+    // Build dynamic query dengan filters DAN restaurant_id
+    let whereClause = 'WHERE restaurant_id = $1';
+    let queryParams = [req.user.restaurantId]; // ✅ Filter by restaurant
+    let paramCount = 1;
 
     if (status) {
       paramCount++;
-      whereClause += `WHERE status = $${paramCount}`;
+      whereClause += ` AND status = $${paramCount}`;
       queryParams.push(status);
     }
 
     if (search) {
       paramCount++;
-      whereClause += whereClause ? ` AND name ILIKE $${paramCount}` : `WHERE name ILIKE $${paramCount}`;
+      whereClause += ` AND name ILIKE $${paramCount}`;
       queryParams.push(`%${search}%`);
     }
 
@@ -53,6 +53,8 @@ router.get('/', async (req, res) => {
 
     const result = await pool.query(dataQuery, queryParams);
 
+    console.log('🏪 GET /api/tables - Restaurant:', req.user.restaurantId, 'Total:', result.rows.length);
+
     res.json({
       success: true,
       data: result.rows,
@@ -66,7 +68,7 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching tables:', error);
+    console.error('❌ Error fetching tables:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Internal server error',
@@ -77,8 +79,8 @@ router.get('/', async (req, res) => {
 
 /**
  * @route   GET /api/tables/:id
- * @desc    Get single table by ID
- * @access  Public
+ * @desc    Get single table by ID - VERIFY RESTAURANT OWNERSHIP
+ * @access  Private
  * @param   id (number) - Table ID
  */
 router.get('/:id', async (req, res) => {
@@ -95,15 +97,15 @@ router.get('/:id', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, name, capacity, status, created_at, updated_at FROM restaurant_tables WHERE id = $1',
-      [id]
+      'SELECT id, name, capacity, status, created_at, updated_at FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Table not found',
-        message: 'Meja tidak ditemukan'
+        message: 'Meja tidak ditemukan atau akses ditolak'
       });
     }
 
@@ -112,7 +114,7 @@ router.get('/:id', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('Error fetching table:', error);
+    console.error('❌ Error fetching table:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Internal server error',
@@ -123,8 +125,8 @@ router.get('/:id', async (req, res) => {
 
 /**
  * @route   POST /api/tables
- * @desc    Create a new table
- * @access  Public
+ * @desc    Create a new table - AUTO SET RESTAURANT_ID
+ * @access  Private
  * @body    name (string, required) - Table name (unique)
  * @body    capacity (number, required) - Table capacity (min: 1, max: 20)
  * @body    status (string, optional) - Table status (default: 'kosong')
@@ -165,10 +167,10 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Check for duplicate table name
+    // Check for duplicate table name IN THE SAME RESTAURANT
     const duplicateCheck = await client.query(
-      'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1)',
-      [name.trim()]
+      'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND restaurant_id = $2',
+      [name.trim(), req.user.restaurantId] // ✅ Check within same restaurant only
     );
 
     if (duplicateCheck.rows.length > 0) {
@@ -176,19 +178,21 @@ router.post('/', async (req, res) => {
       return res.status(409).json({
         success: false,
         error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan'
+        message: 'Nama meja sudah digunakan di restaurant ini'
       });
     }
 
-    // Insert new table
+    // Insert new table with restaurant_id
     const result = await client.query(
-      `INSERT INTO restaurant_tables (name, capacity, status, created_at) 
-       VALUES ($1, $2, $3, CURRENT_TIMESTAMP) 
+      `INSERT INTO restaurant_tables (name, capacity, status, restaurant_id, created_at) 
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) 
        RETURNING id, name, capacity, status, created_at, updated_at`,
-      [name.trim(), capacity, status]
+      [name.trim(), capacity, status, req.user.restaurantId] // ✅ Auto-set restaurant_id
     );
 
     await client.query('COMMIT');
+
+    console.log('✅ Table created - ID:', result.rows[0].id, 'Restaurant:', req.user.restaurantId);
 
     res.status(201).json({
       success: true,
@@ -198,7 +202,7 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating table:', error);
+    console.error('❌ Error creating table:', error);
     
     // Handle specific database errors
     if (error.code === '23505') { // Unique constraint violation
@@ -221,8 +225,8 @@ router.post('/', async (req, res) => {
 
 /**
  * @route   PUT /api/tables/:id
- * @desc    Update entire table entry
- * @access  Public
+ * @desc    Update entire table entry - VERIFY RESTAURANT OWNERSHIP
+ * @access  Private
  * @param   id (number) - Table ID
  * @body    name (string, required) - Table name
  * @body    capacity (number, required) - Table capacity
@@ -275,10 +279,10 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Check if table exists
+    // Check if table exists AND belongs to user's restaurant
     const existingTable = await client.query(
-      'SELECT id, name FROM restaurant_tables WHERE id = $1',
-      [id]
+      'SELECT id, name FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     if (existingTable.rows.length === 0) {
@@ -286,14 +290,14 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Table not found',
-        message: 'Meja tidak ditemukan'
+        message: 'Meja tidak ditemukan atau akses ditolak'
       });
     }
 
-    // Check for duplicate table name (excluding current table)
+    // Check for duplicate table name (excluding current table) IN THE SAME RESTAURANT
     const duplicateCheck = await client.query(
-      'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2',
-      [name.trim(), id]
+      'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2 AND restaurant_id = $3',
+      [name.trim(), id, req.user.restaurantId] // ✅ Check within same restaurant only
     );
 
     if (duplicateCheck.rows.length > 0) {
@@ -301,7 +305,7 @@ router.put('/:id', async (req, res) => {
       return res.status(409).json({
         success: false,
         error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan'
+        message: 'Nama meja sudah digunakan di restaurant ini'
       });
     }
 
@@ -309,12 +313,14 @@ router.put('/:id', async (req, res) => {
     const result = await client.query(
       `UPDATE restaurant_tables 
        SET name = $1, capacity = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $4 
+       WHERE id = $4 AND restaurant_id = $5
        RETURNING id, name, capacity, status, created_at, updated_at`,
-      [name.trim(), capacity, status, id]
+      [name.trim(), capacity, status, id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     await client.query('COMMIT');
+
+    console.log('✅ Table updated - ID:', id, 'Restaurant:', req.user.restaurantId);
 
     res.json({
       success: true,
@@ -324,7 +330,7 @@ router.put('/:id', async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error updating table:', error);
+    console.error('❌ Error updating table:', error);
     
     if (error.code === '23505') {
       res.status(409).json({
@@ -346,8 +352,8 @@ router.put('/:id', async (req, res) => {
 
 /**
  * @route   PATCH /api/tables/:id
- * @desc    Partially update table entry
- * @access  Public
+ * @desc    Partially update table entry - VERIFY RESTAURANT OWNERSHIP
+ * @access  Private
  * @param   id (number) - Table ID
  * @body    name (string, optional) - Table name
  * @body    capacity (number, optional) - Table capacity
@@ -372,10 +378,10 @@ router.patch('/:id', async (req, res) => {
       });
     }
 
-    // Check if table exists
+    // Check if table exists AND belongs to user's restaurant
     const existingTable = await client.query(
-      'SELECT id, name, capacity, status FROM restaurant_tables WHERE id = $1',
-      [id]
+      'SELECT id, name, capacity, status FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     if (existingTable.rows.length === 0) {
@@ -383,7 +389,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Table not found',
-        message: 'Meja tidak ditemukan'
+        message: 'Meja tidak ditemukan atau akses ditolak'
       });
     }
 
@@ -399,14 +405,14 @@ router.patch('/:id', async (req, res) => {
       } else if (name.trim().length > 100) {
         errors.push('Nama meja maksimal 100 karakter');
       } else {
-        // Check for duplicate name
+        // Check for duplicate name IN THE SAME RESTAURANT
         const duplicateCheck = await client.query(
-          'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2',
-          [name.trim(), id]
+          'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2 AND restaurant_id = $3',
+          [name.trim(), id, req.user.restaurantId] // ✅ Check within same restaurant only
         );
 
         if (duplicateCheck.rows.length > 0) {
-          errors.push('Nama meja sudah digunakan');
+          errors.push('Nama meja sudah digunakan di restaurant ini');
         } else {
           paramCount++;
           updateFields.push(`name = $${paramCount}`);
@@ -458,21 +464,25 @@ router.patch('/:id', async (req, res) => {
     // Add updated_at field (no parameter needed for CURRENT_TIMESTAMP)
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
     
-    // Add WHERE clause parameter
+    // Add WHERE clause parameters
     paramCount++;
     updateValues.push(id);
+    paramCount++;
+    updateValues.push(req.user.restaurantId);
 
     // Update table
     const updateQuery = `
       UPDATE restaurant_tables 
       SET ${updateFields.join(', ')} 
-      WHERE id = $${paramCount} 
+      WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
       RETURNING id, name, capacity, status, created_at, updated_at
     `;
 
     const result = await client.query(updateQuery, updateValues);
 
     await client.query('COMMIT');
+
+    console.log('✅ Table patched - ID:', id, 'Restaurant:', req.user.restaurantId);
 
     res.json({
       success: true,
@@ -482,7 +492,7 @@ router.patch('/:id', async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error updating table:', error);
+    console.error('❌ Error updating table:', error);
     
     if (error.code === '23505') {
       res.status(409).json({
@@ -504,8 +514,8 @@ router.patch('/:id', async (req, res) => {
 
 /**
  * @route   PUT /api/tables/:id/status
- * @desc    Update table status only (legacy endpoint for compatibility)
- * @access  Public
+ * @desc    Update table status only - VERIFY RESTAURANT OWNERSHIP
+ * @access  Private
  * @param   id (number) - Table ID
  * @body    status (string, required) - New table status
  */
@@ -534,17 +544,19 @@ router.put('/:id/status', async (req, res) => {
     }
 
     const result = await pool.query(
-      'UPDATE restaurant_tables SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [status, id]
+      'UPDATE restaurant_tables SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND restaurant_id = $3 RETURNING *',
+      [status, id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'Table not found',
-        message: 'Meja tidak ditemukan'
+        message: 'Meja tidak ditemukan atau akses ditolak'
       });
     }
+
+    console.log('✅ Table status updated - ID:', id, 'Status:', status, 'Restaurant:', req.user.restaurantId);
 
     res.json({ 
       success: true, 
@@ -552,7 +564,7 @@ router.put('/:id/status', async (req, res) => {
       message: 'Status meja berhasil diperbarui'
     });
   } catch (error) {
-    console.error('Error updating table status:', error);
+    console.error('❌ Error updating table status:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Internal server error',
@@ -563,8 +575,8 @@ router.put('/:id/status', async (req, res) => {
 
 /**
  * @route   DELETE /api/tables/:id
- * @desc    Delete a table
- * @access  Public
+ * @desc    Delete a table - VERIFY RESTAURANT OWNERSHIP
+ * @access  Private
  * @param   id (number) - Table ID
  */
 router.delete('/:id', async (req, res) => {
@@ -585,10 +597,10 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Check if table exists
+    // Check if table exists AND belongs to user's restaurant
     const existingTable = await client.query(
-      'SELECT id, name, status FROM restaurant_tables WHERE id = $1',
-      [id]
+      'SELECT id, name, status FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     if (existingTable.rows.length === 0) {
@@ -596,14 +608,14 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Table not found',
-        message: 'Meja tidak ditemukan'
+        message: 'Meja tidak ditemukan atau akses ditolak'
       });
     }
 
-    // Check if table is currently in use (has active orders)
+    // Check if table is currently in use (has active orders) IN THE SAME RESTAURANT
     const activeOrdersCheck = await client.query(
-      'SELECT COUNT(*) as count FROM orders WHERE table_id = $1 AND status NOT IN (\'completed\', \'cancelled\')',
-      [id]
+      'SELECT COUNT(*) as count FROM orders WHERE table_id = $1 AND status NOT IN (\'completed\', \'cancelled\') AND restaurant_id = $2',
+      [id, req.user.restaurantId] // ✅ Check within same restaurant only
     );
 
     if (parseInt(activeOrdersCheck.rows[0].count) > 0) {
@@ -617,11 +629,13 @@ router.delete('/:id', async (req, res) => {
 
     // Delete the table
     const result = await client.query(
-      'DELETE FROM restaurant_tables WHERE id = $1 RETURNING id, name',
-      [id]
+      'DELETE FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2 RETURNING id, name',
+      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
     );
 
     await client.query('COMMIT');
+
+    console.log('✅ Table deleted - ID:', id, 'Restaurant:', req.user.restaurantId);
 
     res.json({
       success: true,
@@ -631,7 +645,7 @@ router.delete('/:id', async (req, res) => {
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error deleting table:', error);
+    console.error('❌ Error deleting table:', error);
     
     // Handle foreign key constraint violations
     if (error.code === '23503') {

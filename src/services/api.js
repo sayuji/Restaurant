@@ -233,7 +233,10 @@ export const usersAPI = {
   delete: (id) => api.delete(`/users/${id}`),
   
   // Toggle user active status
-  toggleStatus: (id, isActive) => api.put(`/users/${id}/status`, { isActive })
+  toggleStatus: (id, isActive) => api.put(`/users/${id}/status`, { isActive }),
+  
+  // ✅ TAMBAH INI: Get restaurants for dropdown
+  getRestaurants: () => api.get('/restaurants')
 };
 
 // Default export
