@@ -48,16 +48,16 @@ export default function Tables() {
     try {
       setLoading(true);
       console.log('🔄 Loading tables dari database...');
-      const tablesData = await tablesAPI.getAll();
+      const response = await tablesAPI.getAll();
       
-      // Pastikan tablesData adalah array
-      const tablesArray = Array.isArray(tablesData) ? tablesData : (tablesData.data || []);
+      // ✅ FIX: Handle response format properly
+      const tablesArray = Array.isArray(response) 
+        ? response 
+        : (response.data || response.tables || []);
       
       setTables(tablesArray);
       console.log('✅ Tables loaded:', tablesArray.length);
       
-      // Simpan ke localStorage sebagai backup
-      localStorage.setItem("tables", JSON.stringify(tablesArray));
     } catch (error) {
       console.error('❌ Gagal memuat tables dari backend:', error);
       // Fallback ke localStorage
@@ -122,29 +122,39 @@ export default function Tables() {
 
       console.log('➕ Creating table in database:', newTableData);
       
-      const result = await tablesAPI.create(newTableData);
+      const response = await tablesAPI.create(newTableData);
       
-      setTables(prev => [...prev, result]);
-      console.log('✅ Table created successfully:', result.id);
+      // ✅ FIX: Handle response format properly
+      const newTable = response.data || response;
+      
+      setTables(prev => [...prev, newTable]);
+      console.log('✅ Table created successfully:', newTable.id);
       
       closeModal();
       toast.success(`Meja ${form.name} berhasil ditambahkan`);
+      
     } catch (error) {
       console.error('❌ Error creating table:', error);
-      toast.error('Gagal membuat meja. Silakan coba lagi.');
       
-      // Fallback ke localStorage
-      const newTable = {
-        id: Date.now(),
-        name: form.name,
-        status: form.status,
-        capacity: parseInt(form.capacity) || 4,
-        createdAt: new Date().toISOString()
-      };
-      
-      setTables(prev => [...prev, newTable]);
-      localStorage.setItem("tables", JSON.stringify([...tables, newTable]));
-      closeModal();
+      // ✅ IMPROVED ERROR HANDLING
+      if (error.message.includes('23505') || error.message.includes('duplicate')) {
+        toast.error('Nama meja sudah digunakan di restaurant ini. Gunakan nama lain.');
+      } else {
+        toast.error('Gagal membuat meja. Silakan coba lagi.');
+        
+        // Fallback ke localStorage
+        const newTable = {
+          id: Date.now(),
+          name: form.name,
+          status: form.status,
+          capacity: parseInt(form.capacity) || 4,
+          createdAt: new Date().toISOString()
+        };
+        
+        setTables(prev => [...prev, newTable]);
+        localStorage.setItem("tables", JSON.stringify([...tables, newTable]));
+        closeModal();
+      }
     } finally {
       setLoading(false);
     }
@@ -168,30 +178,40 @@ export default function Tables() {
 
       console.log('✏️ Updating table in database:', modalData.id, updatedTableData);
       
-      const result = await tablesAPI.update(modalData.id, updatedTableData);
+      const response = await tablesAPI.update(modalData.id, updatedTableData);
       
-      setTables(prev => prev.map((t) => t.id === modalData.id ? result : t));
+      // ✅ FIX: Handle response format properly
+      const updatedTable = response.data || response;
+      
+      setTables(prev => prev.map((t) => t.id === modalData.id ? updatedTable : t));
       console.log('✅ Table updated successfully:', modalData.id);
       
       closeModal();
       toast.success(`Meja ${form.name} berhasil diupdate`);
+      
     } catch (error) {
       console.error('❌ Error updating table:', error);
-      toast.error('Gagal mengupdate meja. Silakan coba lagi.');
       
-      // Fallback ke localStorage
-      setTables(prev => prev.map((t) =>
-        t.id === modalData.id ? { 
-          ...t, 
-          name: form.name, 
-          status: form.status, 
-          capacity: parseInt(form.capacity) || 4,
-          updatedAt: new Date().toISOString()
-        } : t
-      ));
-      
-      localStorage.setItem("tables", JSON.stringify(tables));
-      closeModal();
+      // ✅ IMPROVED ERROR HANDLING
+      if (error.message.includes('23505') || error.message.includes('duplicate')) {
+        toast.error('Nama meja sudah digunakan di restaurant ini. Gunakan nama lain.');
+      } else {
+        toast.error('Gagal mengupdate meja. Silakan coba lagi.');
+        
+        // Fallback ke localStorage
+        setTables(prev => prev.map((t) =>
+          t.id === modalData.id ? { 
+            ...t, 
+            name: form.name, 
+            status: form.status, 
+            capacity: parseInt(form.capacity) || 4,
+            updatedAt: new Date().toISOString()
+          } : t
+        ));
+        
+        localStorage.setItem("tables", JSON.stringify(tables));
+        closeModal();
+      }
     } finally {
       setLoading(false);
     }
