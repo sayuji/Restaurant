@@ -110,11 +110,11 @@ export default function Dashboard() {
         return orderDate === today;
       });
       
-      const totalTodaySales = todayOrders.reduce((sum, order) => sum + (order.total_price || order.totalHarga || 0), 0);
+      const totalTodaySales = todayOrders.reduce((sum, order) => sum + (parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0), 0);
       
       // Average Order Value
       const avgOrderValue = completedOrders.length > 0 
-        ? Math.round(completedOrders.reduce((sum, order) => sum + (order.total_price || order.totalHarga || 0), 0) / completedOrders.length)
+        ? Math.round(completedOrders.reduce((sum, order) => sum + (parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0), 0) / completedOrders.length)
         : 0;
 
       // Popular Menu with quantity
@@ -188,7 +188,7 @@ export default function Dashboard() {
               const orderDate = new Date(order.created_at || order.completedAt);
               return orderDate.getDay() === index;
             });
-            const totalSales = dayOrders.reduce((sum, order) => sum + (order.total_price || order.totalHarga || 0), 0);
+            const totalSales = dayOrders.reduce((sum, order) => sum + (parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0), 0);
             return { day, sales: totalSales, orders: dayOrders.length };
           });
         } else if (timeRange === "month") {
@@ -207,7 +207,7 @@ export default function Dashboard() {
               });
               return orderDate === date;
             });
-            const totalSales = dayOrders.reduce((sum, order) => sum + (order.total_price || order.totalHarga || 0), 0);
+            const totalSales = dayOrders.reduce((sum, order) => sum + (parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0), 0);
             return { day: date, sales: totalSales, orders: dayOrders.length };
           });
         } else {
@@ -218,7 +218,7 @@ export default function Dashboard() {
               const orderDate = new Date(order.created_at || order.completedAt);
               return orderDate.toLocaleDateString("id-ID", { month: "short" }) === month;
             });
-            const totalSales = monthOrders.reduce((sum, order) => sum + (order.total_price || order.totalHarga || 0), 0);
+            const totalSales = monthOrders.reduce((sum, order) => sum + (parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0), 0);
             return { day: month, sales: totalSales, orders: monthOrders.length };
           });
         }
@@ -232,7 +232,7 @@ export default function Dashboard() {
           id: order.id,
           namaMeja: order.table_name,
           items: order.items || [],
-          totalHarga: order.total_price || order.totalHarga,
+          totalHarga: parseFloat(order.total_price) || parseFloat(order.totalHarga) || 0,
           waktu: new Date(order.created_at || order.completedAt).toLocaleTimeString("id-ID", { hour12: false }),
           tanggal: new Date(order.created_at || order.completedAt).toLocaleDateString("id-ID")
         }));

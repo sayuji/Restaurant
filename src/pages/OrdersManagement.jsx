@@ -108,7 +108,7 @@ export default function OrdersManagement() {
       tableId: order.table_id,
       namaMeja: order.table_name,
       items: fixedItems,
-      totalHarga: order.total_price,
+      totalHarga: parseFloat(order.total_price) || 0,
       status: order.status === 'completed' ? 'Selesai' : 'Sedang Diproses',
       createdAt: order.created_at,
       completedAt: order.updated_at || order.created_at,
