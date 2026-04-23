@@ -5,13 +5,11 @@ import Dashboard from "./pages/Dashboard";
 import Menu from "./pages/Menu";
 import Orders from "./pages/Orders";
 import Checkout from "./pages/Checkout";
-import ListOrders from "./pages/ListOrders";
+import OrdersManagement from "./pages/OrdersManagement";
 import Tables from "./pages/Tables";
-import Receipts from './pages/Receipts';
 import Settings from "./pages/Settings";
 import ProtectedRoute, { AdminRoute } from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
-import HistoryOrders from "./pages/HistoryOrders";
 import TitleManager from "./components/TitleManager";
 import UserManagement from './pages/UserManagement';
 
@@ -83,13 +81,13 @@ export default function App() {
           }
         />
 
-        {/* Kitchen Orders - Kitchen staff & above */}
+        {/* Orders Management - Kitchen staff & above (combines list-orders and history-orders) */}
         <Route
           path="/list-orders"
           element={
             <ProtectedRoute requiredAnyRole={['admin', 'manager', 'kitchen']}>
               <MainLayout>
-                <ListOrders />
+                <OrdersManagement />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -107,16 +105,17 @@ export default function App() {
           }
         />
 
+        {/* Receipts - Redirects to Orders Management (Struk tab) */}
         <Route
           path="/receipts"
           element={
             <ProtectedRoute requiredAnyRole={['admin', 'manager', 'cashier']}>
               <MainLayout>
-                <Receipts />
+                <OrdersManagement />
               </MainLayout>
             </ProtectedRoute>
           }
-        />  
+        />
 
         {/* Settings - Admin only */}
         <Route
@@ -130,13 +129,13 @@ export default function App() {
           }
         />
 
-        {/* Order History - Manager & above */}
+        {/* Order History - Manager & above (redirects to orders management) */}
         <Route
           path="/history-orders"
           element={
             <ProtectedRoute requiredAnyRole={['admin', 'manager']}>
               <MainLayout>
-                <HistoryOrders />
+                <OrdersManagement />
               </MainLayout>
             </ProtectedRoute>
           }

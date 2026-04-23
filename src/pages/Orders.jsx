@@ -40,11 +40,20 @@ export default function Orders() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
+  const [menuLoading, setMenuLoading] = useState(false);
 
   // 🔥 LOAD DATA DARI DATABASE - SAMA PATTERN DENGAN MENU.JSX
   useEffect(() => {
-    loadTablesFromBackend();
-    loadMenusFromBackend();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (isMounted) {
+        await loadTablesFromBackend();
+        await loadMenusFromBackend();
+      }
+    };
+    
+    loadData();
     
     // Handle table parameter dari URL
     const encryptedTableParam = getQueryParam("table", location.search ? `${window.location.origin}${location.pathname}${location.search}` : window.location.href);
@@ -55,7 +64,11 @@ export default function Orders() {
     } else {
       setShowTableSelector(true);
     }
-  }, [location.search, location.pathname]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - hanya load sekali saat mount
 
   // 🔥 LOAD TABLES DARI DATABASE
   const loadTablesFromBackend = async () => {
@@ -104,7 +117,10 @@ export default function Orders() {
 
   // 🔥 LOAD MENUS DARI DATABASE - SAMA PERSIS DENGAN MENU.JSX
   const loadMenusFromBackend = async () => {
+    if (menuLoading) return; // Prevent multiple simultaneous calls
+    
     try {
+      setMenuLoading(true);
       console.log('🔄 Loading menus dari database...');
       const menusData = await menuAPI.getAll();
       setMenus(menusData);
@@ -119,11 +135,29 @@ export default function Orders() {
         ).values(),
       ];
       setCategories(uniqueCats);
-      toast.success("Menu berhasil dimuat");
+      
+      if (menusData.length > 0) {
+        toast.success("Menu berhasil dimuat");
+      } else {
+        toast.info("Belum ada menu tersedia");
+      }
       
     } catch (error) {
       console.error('❌ Gagal memuat menu dari backend:', error);
+      
+      // Check if it's an authentication error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        toast.error("Sesi Anda telah berakhir. Silakan login kembali.");
+        setTimeout(() => {
+          localStorage.removeItem("user");
+          localStorage.removeItem("token");
+          window.location.href = "/login";
+        }, 2000);
+        return;
+      }
+      
       toast.error("Gagal memuat data menu");
+      
       // Fallback ke localStorage
       try {
         const savedMenus = JSON.parse(localStorage.getItem("menus") || "[]");
@@ -138,11 +172,14 @@ export default function Orders() {
             ).values(),
           ];
           setCategories(uniqueCats);
+          toast.info("Menggunakan data menu offline");
         }
         console.log('🔄 Using localStorage fallback for menus');
       } catch (localError) {
         console.error('❌ Juga gagal baca localStorage:', localError);
       }
+    } finally {
+      setMenuLoading(false);
     }
   };
 

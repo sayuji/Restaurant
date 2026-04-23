@@ -9,8 +9,7 @@ import {
   Settings, 
   Clock, 
   User,
-  Users,
-  Receipt
+  Users
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getCurrentUser, hasAnyRole } from "../services/api";
@@ -119,27 +118,12 @@ export default function MainLayout({ children }) {
         roles: ['admin', 'manager', 'kitchen', 'cashier']
       },
       
-      // List Orders - Kitchen staff & above
+      // Orders Management - Kitchen staff & above (combines List Orders and History)
       { 
-        name: "List Orders", 
+        name: "Manajemen Pesanan", 
         icon: <List size={20} />, 
         path: "/list-orders", 
         roles: ['admin', 'manager', 'kitchen']
-      },
-      
-      // History - Manager & above
-      { 
-        name: "History", 
-        icon: <Clock size={20} />, 
-        path: "/history-orders", 
-        roles: ['admin', 'manager']
-      },
-      
-      { 
-        name: "Recipts", 
-        icon: <Receipt size={20} />, 
-        path: "/receipts", 
-        roles: ['admin', 'manager', 'cashier']
       },
 
       // Tables - Admin & Manager only

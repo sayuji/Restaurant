@@ -28,9 +28,8 @@ const handleUnauthorized = (response) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
-    throw new Error('Session expired. Please login again.');
+    throw new Error('Sesi berakhir. Silakan login kembali.');
   }
-  return response;
 };
 
 export const api = {
@@ -42,8 +41,14 @@ export const api = {
     handleUnauthorized(response);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`GET failed: ${response.status} - ${errorText}`);
+      let errorMsg = `Request gagal: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.message || errorData.error || errorMsg;
+      } catch (e) {
+        // response bukan JSON
+      }
+      throw new Error(errorMsg);
     }
     
     return response.json();
@@ -61,8 +66,12 @@ export const api = {
     handleUnauthorized(response);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`POST failed: ${response.status} - ${errorText}`);
+      let errorMsg = `Request gagal: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.message || errorData.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
     
     return response.json();
@@ -80,8 +89,12 @@ export const api = {
     handleUnauthorized(response);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`PUT failed: ${response.status} - ${errorText}`);
+      let errorMsg = `Request gagal: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.message || errorData.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
     
     return response.json();
@@ -96,8 +109,12 @@ export const api = {
     handleUnauthorized(response);
     
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`DELETE failed: ${response.status} - ${errorText}`);
+      let errorMsg = `Request gagal: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.message || errorData.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
     
     return response.json();

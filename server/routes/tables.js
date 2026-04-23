@@ -4,23 +4,25 @@ const pool = require('../config/database');
 
 /**
  * @route   GET /api/tables
- * @desc    Get all tables with optional pagination - FILTER BY RESTAURANT
- * @access  Private
- * @query   page (number) - Page number (default: 1)
- * @query   limit (number) - Items per page (default: 10, max: 100)
- * @query   status (string) - Filter by status (optional)
- * @query   search (string) - Search by table name (optional)
+ * @desc    Get all tables - FILTER BY RESTAURANT
  */
 router.get('/', async (req, res) => {
   try {
+    if (!req.user.restaurantId) {
+      return res.json({
+        success: true,
+        data: [],
+        pagination: { currentPage: 1, totalPages: 0, totalItems: 0, itemsPerPage: 10, hasNextPage: false, hasPrevPage: false }
+      });
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = Math.min(parseInt(req.query.limit) || 10, 100);
     const offset = (page - 1) * limit;
     const { status, search } = req.query;
 
-    // Build dynamic query dengan filters DAN restaurant_id
     let whereClause = 'WHERE restaurant_id = $1';
-    let queryParams = [req.user.restaurantId]; // ✅ Filter by restaurant
+    let queryParams = [req.user.restaurantId];
     let paramCount = 1;
 
     if (status) {
@@ -35,23 +37,25 @@ router.get('/', async (req, res) => {
       queryParams.push(`%${search}%`);
     }
 
-    // Get total count for pagination
-    const countQuery = `SELECT COUNT(*) FROM restaurant_tables ${whereClause}`;
-    const countResult = await pool.query(countQuery, queryParams);
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM restaurant_tables ${whereClause}`,
+      queryParams
+    );
     const totalItems = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalItems / limit);
 
-    // Get paginated results
-    const dataQuery = `
-      SELECT id, name, capacity, status, created_at, updated_at 
-      FROM restaurant_tables 
-      ${whereClause} 
-      ORDER BY name ASC 
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `;
-    queryParams.push(limit, offset);
+    paramCount++;
+    const limitIdx = paramCount;
+    paramCount++;
+    const offsetIdx = paramCount;
 
-    const result = await pool.query(dataQuery, queryParams);
+    const result = await pool.query(
+      `SELECT id, name, capacity, status, created_at, updated_at 
+       FROM restaurant_tables ${whereClause} 
+       ORDER BY name ASC 
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      [...queryParams, limit, offset]
+    );
 
     console.log('🏪 GET /api/tables - Restaurant:', req.user.restaurantId, 'Total:', result.rows.length);
 
@@ -69,154 +73,91 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error fetching tables:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error',
-      message: 'Gagal mengambil data meja' 
-    });
+    res.status(500).json({ success: false, error: 'Internal server error', message: 'Gagal mengambil data meja' });
   }
 });
 
 /**
  * @route   GET /api/tables/:id
- * @desc    Get single table by ID - VERIFY RESTAURANT OWNERSHIP
- * @access  Private
- * @param   id (number) - Table ID
  */
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid table ID',
-        message: 'ID meja tidak valid'
-      });
+      return res.status(400).json({ success: false, message: 'ID meja tidak valid' });
+    }
+    if (!req.user.restaurantId) {
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
     }
 
     const result = await pool.query(
       'SELECT id, name, capacity, status, created_at, updated_at FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
-      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
+      [id, req.user.restaurantId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Table not found',
-        message: 'Meja tidak ditemukan atau akses ditolak'
-      });
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('❌ Error fetching table:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error',
-      message: 'Gagal mengambil data meja' 
-    });
+    res.status(500).json({ success: false, message: 'Gagal mengambil data meja' });
   }
 });
 
 /**
  * @route   POST /api/tables
- * @desc    Create a new table - AUTO SET RESTAURANT_ID
- * @access  Private
- * @body    name (string, required) - Table name (unique)
- * @body    capacity (number, required) - Table capacity (min: 1, max: 20)
- * @body    status (string, optional) - Table status (default: 'kosong')
  */
 router.post('/', async (req, res) => {
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
-
     const { name, capacity, status = 'kosong' } = req.body;
 
-    // Input validation
-    const errors = [];
-    
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      errors.push('Nama meja harus diisi');
-    } else if (name.trim().length > 100) {
-      errors.push('Nama meja maksimal 100 karakter');
+    if (!req.user.restaurantId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'User tidak terhubung ke restaurant. Silakan login ulang.' });
     }
 
-    if (!capacity || !Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
-      errors.push('Kapasitas meja harus berupa angka antara 1-20');
-    }
+    const errors = [];
+    if (!name || typeof name !== 'string' || name.trim().length === 0) errors.push('Nama meja harus diisi');
+    else if (name.trim().length > 100) errors.push('Nama meja maksimal 100 karakter');
+    if (!capacity || !Number.isInteger(capacity) || capacity < 1 || capacity > 20) errors.push('Kapasitas harus 1-20');
 
     const validStatuses = ['kosong', 'tersedia', 'terisi', 'reserved'];
-    if (status && !validStatuses.includes(status)) {
-      errors.push(`Status meja harus salah satu dari: ${validStatuses.join(', ')}`);
-    }
+    if (status && !validStatuses.includes(status)) errors.push('Status tidak valid');
 
     if (errors.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        message: 'Data tidak valid',
-        details: errors
-      });
+      return res.status(400).json({ success: false, message: 'Data tidak valid', details: errors });
     }
 
-    // Check for duplicate table name IN THE SAME RESTAURANT
-    const duplicateCheck = await client.query(
+    const dup = await client.query(
       'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND restaurant_id = $2',
-      [name.trim(), req.user.restaurantId] // ✅ Check within same restaurant only
+      [name.trim(), req.user.restaurantId]
     );
-
-    if (duplicateCheck.rows.length > 0) {
+    if (dup.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan di restaurant ini'
-      });
+      return res.status(409).json({ success: false, message: 'Nama meja sudah digunakan' });
     }
 
-    // Insert new table with restaurant_id
     const result = await client.query(
       `INSERT INTO restaurant_tables (name, capacity, status, restaurant_id, created_at) 
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) 
-       RETURNING id, name, capacity, status, created_at, updated_at`,
-      [name.trim(), capacity, status, req.user.restaurantId] // ✅ Auto-set restaurant_id
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING id, name, capacity, status, created_at, updated_at`,
+      [name.trim(), capacity, status, req.user.restaurantId]
     );
-
     await client.query('COMMIT');
 
     console.log('✅ Table created - ID:', result.rows[0].id, 'Restaurant:', req.user.restaurantId);
-
-    res.status(201).json({
-      success: true,
-      data: result.rows[0],
-      message: 'Meja berhasil dibuat'
-    });
-
+    res.status(201).json({ success: true, data: result.rows[0], message: 'Meja berhasil dibuat' });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Error creating table:', error);
-    
-    // Handle specific database errors
-    if (error.code === '23505') { // Unique constraint violation
-      res.status(409).json({
-        success: false,
-        error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan'
-      });
+    if (error.code === '23505') {
+      res.status(409).json({ success: false, message: 'Nama meja sudah digunakan' });
     } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error',
-        message: 'Gagal membuat meja baru' 
-      });
+      res.status(500).json({ success: false, message: 'Gagal membuat meja baru' });
     }
   } finally {
     client.release();
@@ -225,126 +166,67 @@ router.post('/', async (req, res) => {
 
 /**
  * @route   PUT /api/tables/:id
- * @desc    Update entire table entry - VERIFY RESTAURANT OWNERSHIP
- * @access  Private
- * @param   id (number) - Table ID
- * @body    name (string, required) - Table name
- * @body    capacity (number, required) - Table capacity
- * @body    status (string, required) - Table status
  */
 router.put('/:id', async (req, res) => {
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
-
     const { id } = req.params;
     const { name, capacity, status } = req.body;
 
-    // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid table ID',
-        message: 'ID meja tidak valid'
-      });
+      return res.status(400).json({ success: false, message: 'ID meja tidak valid' });
+    }
+    if (!req.user.restaurantId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'User tidak terhubung ke restaurant' });
     }
 
-    // Input validation
     const errors = [];
-    
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      errors.push('Nama meja harus diisi');
-    } else if (name.trim().length > 100) {
-      errors.push('Nama meja maksimal 100 karakter');
-    }
-
-    if (!capacity || !Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
-      errors.push('Kapasitas meja harus berupa angka antara 1-20');
-    }
-
+    if (!name || typeof name !== 'string' || name.trim().length === 0) errors.push('Nama meja harus diisi');
+    else if (name.trim().length > 100) errors.push('Nama meja maksimal 100 karakter');
+    if (!capacity || !Number.isInteger(capacity) || capacity < 1 || capacity > 20) errors.push('Kapasitas harus 1-20');
     const validStatuses = ['kosong', 'tersedia', 'terisi', 'reserved'];
-    if (!status || !validStatuses.includes(status)) {
-      errors.push(`Status meja harus salah satu dari: ${validStatuses.join(', ')}`);
-    }
+    if (!status || !validStatuses.includes(status)) errors.push('Status tidak valid');
 
     if (errors.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        message: 'Data tidak valid',
-        details: errors
-      });
+      return res.status(400).json({ success: false, message: 'Data tidak valid', details: errors });
     }
 
-    // Check if table exists AND belongs to user's restaurant
-    const existingTable = await client.query(
-      'SELECT id, name FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
-      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
+    const existing = await client.query(
+      'SELECT id FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId]
     );
-
-    if (existingTable.rows.length === 0) {
+    if (existing.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        error: 'Table not found',
-        message: 'Meja tidak ditemukan atau akses ditolak'
-      });
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
     }
 
-    // Check for duplicate table name (excluding current table) IN THE SAME RESTAURANT
-    const duplicateCheck = await client.query(
+    const dup = await client.query(
       'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2 AND restaurant_id = $3',
-      [name.trim(), id, req.user.restaurantId] // ✅ Check within same restaurant only
+      [name.trim(), id, req.user.restaurantId]
     );
-
-    if (duplicateCheck.rows.length > 0) {
+    if (dup.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan di restaurant ini'
-      });
+      return res.status(409).json({ success: false, message: 'Nama meja sudah digunakan' });
     }
 
-    // Update table
     const result = await client.query(
-      `UPDATE restaurant_tables 
-       SET name = $1, capacity = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
+      `UPDATE restaurant_tables SET name = $1, capacity = $2, status = $3, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $4 AND restaurant_id = $5
        RETURNING id, name, capacity, status, created_at, updated_at`,
-      [name.trim(), capacity, status, id, req.user.restaurantId] // ✅ Verify restaurant ownership
+      [name.trim(), capacity, status, id, req.user.restaurantId]
     );
-
     await client.query('COMMIT');
 
-    console.log('✅ Table updated - ID:', id, 'Restaurant:', req.user.restaurantId);
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-      message: 'Meja berhasil diperbarui'
-    });
-
+    console.log('✅ Table updated - ID:', id);
+    res.json({ success: true, data: result.rows[0], message: 'Meja berhasil diperbarui' });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Error updating table:', error);
-    
-    if (error.code === '23505') {
-      res.status(409).json({
-        success: false,
-        error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan'
-      });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error',
-        message: 'Gagal memperbarui meja' 
-      });
-    }
+    res.status(500).json({ success: false, message: 'Gagal memperbarui meja' });
   } finally {
     client.release();
   }
@@ -352,48 +234,32 @@ router.put('/:id', async (req, res) => {
 
 /**
  * @route   PATCH /api/tables/:id
- * @desc    Partially update table entry - VERIFY RESTAURANT OWNERSHIP
- * @access  Private
- * @param   id (number) - Table ID
- * @body    name (string, optional) - Table name
- * @body    capacity (number, optional) - Table capacity
- * @body    status (string, optional) - Table status
  */
 router.patch('/:id', async (req, res) => {
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
-
     const { id } = req.params;
     const { name, capacity, status } = req.body;
 
-    // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid table ID',
-        message: 'ID meja tidak valid'
-      });
+      return res.status(400).json({ success: false, message: 'ID meja tidak valid' });
     }
-
-    // Check if table exists AND belongs to user's restaurant
-    const existingTable = await client.query(
-      'SELECT id, name, capacity, status FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
-      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
-    );
-
-    if (existingTable.rows.length === 0) {
+    if (!req.user.restaurantId) {
       await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        error: 'Table not found',
-        message: 'Meja tidak ditemukan atau akses ditolak'
-      });
+      return res.status(400).json({ success: false, message: 'User tidak terhubung ke restaurant' });
     }
 
-    // Validate provided fields
+    const existing = await client.query(
+      'SELECT id, name, capacity, status FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId]
+    );
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
+    }
+
     const errors = [];
     const updateFields = [];
     const updateValues = [];
@@ -402,17 +268,13 @@ router.patch('/:id', async (req, res) => {
     if (name !== undefined) {
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         errors.push('Nama meja harus diisi');
-      } else if (name.trim().length > 100) {
-        errors.push('Nama meja maksimal 100 karakter');
       } else {
-        // Check for duplicate name IN THE SAME RESTAURANT
-        const duplicateCheck = await client.query(
+        const dup = await client.query(
           'SELECT id FROM restaurant_tables WHERE LOWER(name) = LOWER($1) AND id != $2 AND restaurant_id = $3',
-          [name.trim(), id, req.user.restaurantId] // ✅ Check within same restaurant only
+          [name.trim(), id, req.user.restaurantId]
         );
-
-        if (duplicateCheck.rows.length > 0) {
-          errors.push('Nama meja sudah digunakan di restaurant ini');
+        if (dup.rows.length > 0) {
+          errors.push('Nama meja sudah digunakan');
         } else {
           paramCount++;
           updateFields.push(`name = $${paramCount}`);
@@ -423,7 +285,7 @@ router.patch('/:id', async (req, res) => {
 
     if (capacity !== undefined) {
       if (!Number.isInteger(capacity) || capacity < 1 || capacity > 20) {
-        errors.push('Kapasitas meja harus berupa angka antara 1-20');
+        errors.push('Kapasitas harus 1-20');
       } else {
         paramCount++;
         updateFields.push(`capacity = $${paramCount}`);
@@ -434,7 +296,7 @@ router.patch('/:id', async (req, res) => {
     if (status !== undefined) {
       const validStatuses = ['kosong', 'tersedia', 'terisi', 'reserved'];
       if (!validStatuses.includes(status)) {
-        errors.push(`Status meja harus salah satu dari: ${validStatuses.join(', ')}`);
+        errors.push('Status tidak valid');
       } else {
         paramCount++;
         updateFields.push(`status = $${paramCount}`);
@@ -444,69 +306,33 @@ router.patch('/:id', async (req, res) => {
 
     if (errors.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Validation failed',
-        message: 'Data tidak valid',
-        details: errors
-      });
+      return res.status(400).json({ success: false, message: 'Data tidak valid', details: errors });
     }
-
     if (updateFields.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'No fields to update',
-        message: 'Tidak ada data yang akan diperbarui'
-      });
+      return res.status(400).json({ success: false, message: 'Tidak ada data yang akan diperbarui' });
     }
 
-    // Add updated_at field (no parameter needed for CURRENT_TIMESTAMP)
-    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-    
-    // Add WHERE clause parameters
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
     paramCount++;
     updateValues.push(id);
     paramCount++;
     updateValues.push(req.user.restaurantId);
 
-    // Update table
-    const updateQuery = `
-      UPDATE restaurant_tables 
-      SET ${updateFields.join(', ')} 
-      WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
-      RETURNING id, name, capacity, status, created_at, updated_at
-    `;
-
-    const result = await client.query(updateQuery, updateValues);
-
+    const result = await client.query(
+      `UPDATE restaurant_tables SET ${updateFields.join(', ')} 
+       WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
+       RETURNING id, name, capacity, status, created_at, updated_at`,
+      updateValues
+    );
     await client.query('COMMIT');
 
-    console.log('✅ Table patched - ID:', id, 'Restaurant:', req.user.restaurantId);
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-      message: 'Meja berhasil diperbarui'
-    });
-
+    console.log('✅ Table patched - ID:', id);
+    res.json({ success: true, data: result.rows[0], message: 'Meja berhasil diperbarui' });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Error updating table:', error);
-    
-    if (error.code === '23505') {
-      res.status(409).json({
-        success: false,
-        error: 'Duplicate table name',
-        message: 'Nama meja sudah digunakan'
-      });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error',
-        message: 'Gagal memperbarui meja' 
-      });
-    }
+    console.error('❌ Error patching table:', error);
+    res.status(500).json({ success: false, message: 'Gagal memperbarui meja' });
   } finally {
     client.release();
   }
@@ -514,152 +340,92 @@ router.patch('/:id', async (req, res) => {
 
 /**
  * @route   PUT /api/tables/:id/status
- * @desc    Update table status only - VERIFY RESTAURANT OWNERSHIP
- * @access  Private
- * @param   id (number) - Table ID
- * @body    status (string, required) - New table status
  */
 router.put('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid table ID',
-        message: 'ID meja tidak valid'
-      });
+      return res.status(400).json({ success: false, message: 'ID meja tidak valid' });
+    }
+    if (!req.user.restaurantId) {
+      return res.status(400).json({ success: false, message: 'User tidak terhubung ke restaurant' });
     }
 
-    // Validate status
     const validStatuses = ['kosong', 'tersedia', 'terisi', 'reserved'];
     if (!status || !validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid status',
-        message: `Status harus salah satu dari: ${validStatuses.join(', ')}`
-      });
+      return res.status(400).json({ success: false, message: `Status harus salah satu dari: ${validStatuses.join(', ')}` });
     }
 
     const result = await pool.query(
       'UPDATE restaurant_tables SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND restaurant_id = $3 RETURNING *',
-      [status, id, req.user.restaurantId] // ✅ Verify restaurant ownership
+      [status, id, req.user.restaurantId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Table not found',
-        message: 'Meja tidak ditemukan atau akses ditolak'
-      });
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
     }
 
-    console.log('✅ Table status updated - ID:', id, 'Status:', status, 'Restaurant:', req.user.restaurantId);
-
-    res.json({ 
-      success: true, 
-      data: result.rows[0],
-      message: 'Status meja berhasil diperbarui'
-    });
+    console.log('✅ Table status updated - ID:', id, 'Status:', status);
+    res.json({ success: true, data: result.rows[0], message: 'Status meja berhasil diperbarui' });
   } catch (error) {
     console.error('❌ Error updating table status:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error',
-      message: 'Gagal update status meja' 
-    });
+    res.status(500).json({ success: false, message: 'Gagal update status meja' });
   }
 });
 
 /**
  * @route   DELETE /api/tables/:id
- * @desc    Delete a table - VERIFY RESTAURANT OWNERSHIP
- * @access  Private
- * @param   id (number) - Table ID
  */
 router.delete('/:id', async (req, res) => {
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
-
     const { id } = req.params;
 
-    // Validate ID parameter
     if (!id || isNaN(parseInt(id))) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid table ID',
-        message: 'ID meja tidak valid'
-      });
+      return res.status(400).json({ success: false, message: 'ID meja tidak valid' });
     }
-
-    // Check if table exists AND belongs to user's restaurant
-    const existingTable = await client.query(
-      'SELECT id, name, status FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
-      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
-    );
-
-    if (existingTable.rows.length === 0) {
+    if (!req.user.restaurantId) {
       await client.query('ROLLBACK');
-      return res.status(404).json({
-        success: false,
-        error: 'Table not found',
-        message: 'Meja tidak ditemukan atau akses ditolak'
-      });
+      return res.status(400).json({ success: false, message: 'User tidak terhubung ke restaurant' });
     }
 
-    // Check if table is currently in use (has active orders) IN THE SAME RESTAURANT
-    const activeOrdersCheck = await client.query(
-      'SELECT COUNT(*) as count FROM orders WHERE table_id = $1 AND status NOT IN (\'completed\', \'cancelled\') AND restaurant_id = $2',
-      [id, req.user.restaurantId] // ✅ Check within same restaurant only
+    const existing = await client.query(
+      'SELECT id, name FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2',
+      [id, req.user.restaurantId]
     );
-
-    if (parseInt(activeOrdersCheck.rows[0].count) > 0) {
+    if (existing.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({
-        success: false,
-        error: 'Table in use',
-        message: 'Tidak dapat menghapus meja yang sedang digunakan'
-      });
+      return res.status(404).json({ success: false, message: 'Meja tidak ditemukan' });
     }
 
-    // Delete the table
+    const activeOrders = await client.query(
+      "SELECT COUNT(*) as count FROM orders WHERE table_id = $1 AND status NOT IN ('completed', 'cancelled') AND restaurant_id = $2",
+      [id, req.user.restaurantId]
+    );
+    if (parseInt(activeOrders.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Tidak dapat menghapus meja yang sedang digunakan' });
+    }
+
     const result = await client.query(
       'DELETE FROM restaurant_tables WHERE id = $1 AND restaurant_id = $2 RETURNING id, name',
-      [id, req.user.restaurantId] // ✅ Verify restaurant ownership
+      [id, req.user.restaurantId]
     );
-
     await client.query('COMMIT');
 
-    console.log('✅ Table deleted - ID:', id, 'Restaurant:', req.user.restaurantId);
-
-    res.json({
-      success: true,
-      data: result.rows[0],
-      message: 'Meja berhasil dihapus'
-    });
-
+    console.log('✅ Table deleted - ID:', id);
+    res.json({ success: true, data: result.rows[0], message: 'Meja berhasil dihapus' });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('❌ Error deleting table:', error);
-    
-    // Handle foreign key constraint violations
     if (error.code === '23503') {
-      res.status(409).json({
-        success: false,
-        error: 'Table has dependencies',
-        message: 'Tidak dapat menghapus meja yang memiliki data terkait'
-      });
+      res.status(409).json({ success: false, message: 'Tidak dapat menghapus meja yang memiliki data terkait' });
     } else {
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error',
-        message: 'Gagal menghapus meja' 
-      });
+      res.status(500).json({ success: false, message: 'Gagal menghapus meja' });
     }
   } finally {
     client.release();

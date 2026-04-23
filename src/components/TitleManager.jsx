@@ -13,8 +13,8 @@ export default function TitleManager() {
       "/menu": "RestoMaster | Menu",
       "/orders": "RestoMaster | Orders",
       "/checkout": "RestoMaster | Checkout",
-      "/list-orders": "RestoMaster | List Orders",
-      "/history-orders": "RestoMaster | History",
+      "/list-orders": "RestoMaster | Manajemen Pesanan",
+      "/history-orders": "RestoMaster | Manajemen Pesanan",
       "/tables": "RestoMaster | Tables",
       "/settings": "RestoMaster | Settings",
     };
