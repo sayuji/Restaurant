@@ -985,7 +985,15 @@ app.put('/api/orders/:id/status', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    console.log('✏️ UPDATE /api/orders/' + orderId + '/status - Status:', status);
+    // Hanya admin, manager, cashier yang bisa menyelesaikan pesanan
+    if (status === 'completed') {
+      const allowedRoles = ['admin', 'manager', 'cashier'];
+      if (!allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({ error: 'Hanya admin, manager, atau kasir yang dapat menyelesaikan pesanan' });
+      }
+    }
+
+    console.log('✏️ UPDATE /api/orders/' + orderId + '/status - Status:', status, 'By:', req.user.role);
     
     const result = await pool.query(
       'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND restaurant_id = $3 RETURNING *',

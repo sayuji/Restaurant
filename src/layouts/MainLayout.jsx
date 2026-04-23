@@ -123,7 +123,7 @@ export default function MainLayout({ children }) {
         name: "Manajemen Pesanan", 
         icon: <List size={20} />, 
         path: "/list-orders", 
-        roles: ['admin', 'manager', 'kitchen']
+        roles: ['admin', 'manager', 'kitchen', 'cashier']
       },
 
       // Tables - Admin & Manager only

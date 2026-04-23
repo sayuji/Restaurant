@@ -85,7 +85,7 @@ export default function App() {
         <Route
           path="/list-orders"
           element={
-            <ProtectedRoute requiredAnyRole={['admin', 'manager', 'kitchen']}>
+            <ProtectedRoute requiredAnyRole={['admin', 'manager', 'kitchen', 'cashier']}>
               <MainLayout>
                 <OrdersManagement />
               </MainLayout>

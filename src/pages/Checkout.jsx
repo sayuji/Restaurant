@@ -376,50 +376,6 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* QRIS Option */}
-                <div 
-                  className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-300 ${
-                    paymentMethod === 'qris' 
-                      ? theme === 'dark'
-                        ? 'border-blue-500 bg-blue-900'
-                        : 'border-blue-500 bg-blue-50'
-                      : theme === 'dark'
-                        ? 'border-gray-600 hover:border-gray-500 bg-gray-700'
-                        : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setPaymentMethod('qris')}
-                >
-                  <div className="flex items-center">
-                    <div className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center ${
-                      paymentMethod === 'qris' 
-                        ? 'border-blue-500 bg-blue-500' 
-                        : theme === 'dark'
-                          ? 'border-gray-500'
-                          : 'border-gray-300'
-                    }`}>
-                      {paymentMethod === 'qris' && (
-                        <div className="w-2 h-2 bg-white rounded-full"></div>
-                      )}
-                    </div>
-                    <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
-                        theme === 'dark' ? 'bg-blue-800' : 'bg-blue-100'
-                      }`}>
-                        <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className={`font-semibold ${
-                          theme === 'dark' ? 'text-white' : 'text-gray-800'
-                        }`}>QRIS</p>
-                        <p className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Scan QR code untuk pembayaran</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTheme } from "../context/ThemeContext";
-import { ordersAPI, tablesAPI } from '../services/api';
+import { ordersAPI, tablesAPI, getCurrentUser } from '../services/api';
 
 export default function OrdersManagement() {
   const [activeTab, setActiveTab] = useState("active"); // "active", "history", or "receipts"
@@ -31,6 +31,8 @@ export default function OrdersManagement() {
   const [orderToDelete, setOrderToDelete] = useState(null);
 
   const { theme } = useTheme();
+  const user = getCurrentUser();
+  const canCompleteOrder = ['admin', 'manager', 'cashier'].includes(user?.role);
 
   // Restaurant settings for receipts
   const [settings, setSettings] = useState({
@@ -747,16 +749,18 @@ export default function OrdersManagement() {
                     <Receipt className="w-4 h-4" />
                     Struk
                   </motion.button>
-                  <motion.button
-                    onClick={() => handleComplete(order)}
-                    disabled={updating}
-                    whileHover={{ scale: updating ? 1 : 1.02 }}
-                    whileTap={{ scale: updating ? 1 : 0.98 }}
-                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {updating ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                    Selesaikan
-                  </motion.button>
+                  {canCompleteOrder && (
+                    <motion.button
+                      onClick={() => handleComplete(order)}
+                      disabled={updating}
+                      whileHover={{ scale: updating ? 1 : 1.02 }}
+                      whileTap={{ scale: updating ? 1 : 0.98 }}
+                      className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {updating ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      Selesaikan
+                    </motion.button>
+                  )}
                 </div>
               </motion.div>
             ))}
